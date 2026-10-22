@@ -7,9 +7,31 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Research Docs](https://img.shields.io/badge/docs-research-green.svg)](docs/RESEARCH.md)
 
+<p align="center">
+  <img src="docs/images/q8-hero-banner.jpg" alt="Rombotics Q8 8-DOF quadruped platform" width="100%">
+</p>
+
 This repository contains the **firmware, calibration tools, and research documentation** for the Rombotics Q8 quadruped platform — an open experimental testbed for studying pose recovery using MPU6050 inertial sensing and decoupled PID control across eight servo-actuated joints.
 
 > **For academic use:** Start with [docs/RESEARCH.md](docs/RESEARCH.md) for the research overview, methodology, and citation information.
+
+---
+
+## Platform Overview
+
+<p align="center">
+  <img src="docs/images/q8-hardware-overview.jpg" alt="Hardware control stack: MPU6050 → orientation → PID → PCA9685 → 8 servos" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/images/q8-balance-concept.jpg" alt="Unbalanced vs IMU-stabilized quadruped pose recovery" width="85%">
+</p>
+
+| Figure | What it shows |
+|-------|----------------|
+| Hero | Q8 mechanical platform with IMU / MCU stack |
+| Hardware overview | Sensing → estimation → PID → PWM → legs |
+| Balance concept | Disturbance rejection via joint-level correction |
 
 ---
 
@@ -83,6 +105,7 @@ Q8_Quadruped_IMU_Stabilization/
 ├── BalancePID/              Primary stabilization controller (research artifact)
 ├── Calibrate/               Joint calibration CLI
 ├── docs/
+│   ├── images/              README / GitHub home figures
 │   ├── RESEARCH.md          Research overview and contributions
 │   ├── METHODOLOGY.md       Control formulation and protocols
 │   ├── EXPERIMENTS.md       Experimental phases 0–6
