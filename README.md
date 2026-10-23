@@ -101,7 +101,7 @@ Experimental prototypes (`Trail/`, `stablisingrobotpid/`, etc.) are retained as 
 
 ## Paper
 
-**Sim-to-real balance control of an 8-DoF quadruped using ROS 2 and embedded complementary filtering.** Romil Chetankumar Modi, 2025. Preprint submitted to IEEE Transactions on Automation Science and Engineering.
+**Sim-to-real balance control of an 8-DoF quadruped using ROS 2 and embedded complementary filtering.** Romil Chetankumar Modi, 2025. Preprint. Supported by the Anglia Ruskin University (ARU) School of Engineering and the Built Environment.
 
 - [Abstract](https://romil0001.github.io/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering/paper/)
 - [PDF](docs/paper/Sim-to-real_balance_control_of_an_8-DoF_quadruped_using_ROS_2_and_embedded_complementary_filtering.pdf)
@@ -111,7 +111,7 @@ Experimental prototypes (`Trail/`, `stablisingrobotpid/`, etc.) are retained as 
   author = {Modi, Romil Chetankumar},
   title  = {Sim-to-real balance control of an 8-DoF quadruped using {ROS} 2 and embedded complementary filtering},
   year   = {2025},
-  note   = {Preprint, submitted to IEEE Transactions on Automation Science and Engineering},
+  note   = {Preprint},
   url    = {https://romil0001.github.io/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering/paper/}
 }
 ```
