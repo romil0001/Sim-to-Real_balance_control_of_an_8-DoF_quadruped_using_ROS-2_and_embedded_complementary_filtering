@@ -9,6 +9,8 @@
 
 This repository contains the **firmware, calibration tools, and research documentation** for the Rombotics Q8 quadruped platform — an open experimental testbed for studying pose recovery using MPU6050 inertial sensing and decoupled PID control across eight servo-actuated joints.
 
+> **Paper:** [Sim-to-real balance control of an 8-DoF quadruped using ROS 2 and embedded complementary filtering](https://romil0001.github.io/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering/paper/) (preprint, 2025).
+>
 > **For academic use:** Start with [docs/RESEARCH.md](docs/RESEARCH.md) for the research overview, methodology, and citation information.
 
 ---
@@ -96,6 +98,23 @@ Q8_Quadruped_IMU_Stabilization/
 Experimental prototypes (`Trail/`, `stablisingrobotpid/`, etc.) are retained as **ablation baselines** — see [EXPERIMENTS.md](docs/EXPERIMENTS.md).
 
 ---
+
+## Paper
+
+**Sim-to-real balance control of an 8-DoF quadruped using ROS 2 and embedded complementary filtering.** Romil Chetankumar Modi, 2025. Preprint submitted to IEEE Transactions on Automation Science and Engineering.
+
+- [Abstract](https://romil0001.github.io/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering/paper/)
+- [PDF](docs/paper/Sim-to-real_balance_control_of_an_8-DoF_quadruped_using_ROS_2_and_embedded_complementary_filtering.pdf)
+
+```bibtex
+@unpublished{modi2025simtoreal,
+  author = {Modi, Romil Chetankumar},
+  title  = {Sim-to-real balance control of an 8-DoF quadruped using {ROS} 2 and embedded complementary filtering},
+  year   = {2025},
+  note   = {Preprint, submitted to IEEE Transactions on Automation Science and Engineering},
+  url    = {https://romil0001.github.io/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering/paper/}
+}
+```
 
 ## Citation
 
