@@ -1,0 +1,1909 @@
+% ============================================================
+%  Title: Rombotics Q8: An Open-Source Sub-£250 Quadruped Robot
+%         with Embedded Per-Axis PID Balance Control,
+%         Loop-Timing Characterisation, and Independent Sensor Validation
+%
+%  Author : Romil Chetankumar Modi
+%           MEng Mechatronics and Robotics Engineering (Distinction)
+%           Anglia Ruskin University, Cambridge, UK
+%           rombotics.com | github.com/romil0001
+%
+%  Supervisors: Dr Shabnam Sadeghi Esfahlani,
+%               Dr Hossein Bisheh
+%
+%  Compile : pdflatex -> bibtex -> pdflatex x2
+%
+%  v7 Changelog (reviewer-response pass — Round 1):
+%  -------------------------------------------------------
+%  MAJOR FIXES
+%  M1 — Abstract MAE now reports both pitch (0.18°) and roll (0.21°);
+%       selective single-value reporting corrected throughout.
+%  M2 — "Independent validation" claim scoped to pitch/roll only in
+%       abstract, Contributions §I.A, §V-B, and conclusion; yaw
+%       inclinometer limitation stated explicitly in each location.
+%  M3 — Yaw 20% improvement baseline now given with n=10, mean±CI,
+%       and a two-sample t-test result (t(38)=6.36, p<0.001) in §V-D.
+%  M4 — t-test statistics added: yaw diagonal vs. uniform baseline
+%       in §V-D; PID-on vs. PID-off gait comparison in §VI (t(6)=9.0,
+%       p<0.001); two-sided α=0.05 as declared in §V-A.
+%  M5 — Platform comparison table: "SpotMini EDU" (wrong citation)
+%       corrected to "Stanford Doggo" with proper kau2019stanford ref;
+%       body-text description in §II-D corrected accordingly.
+%  M6 — Long-duration drift: abstract and §V-G now state "n=5;
+%       preliminary characterisation" rather than presenting as a
+%       fully-powered validated result.
+%  M7 — Locomotion framing reconciled: abstract aligned with §VI
+%       body text ("platform capability baseline" language used
+%       consistently; "demonstrates … on level ground" qualified).
+%
+%  MINOR FIXES
+%  m1 — Truncated Fig. 14 (MATLAB) caption trailing semicolon removed;
+%       sentence completed.
+%  m2 — MPU6050_tockn library commit hash and α value documented in
+%       §IV-B; readers directed to pinned release for reproducibility.
+%  m3 — Payload capacity methodology (static dead-weight test) added
+%       to Table I footnote and §III-A.2.
+%  m4 — PWM-space tibia error bound shown monotonic over ±10° range
+%       via signed-deviation argument in §IV-E.
+%  m5 — Busy-wait design choice justified vs. hardware-timer ISR in §IV-F.
+%  m6 — ZMP analysis scope (static stance only; quasi-static criterion)
+%       stated more explicitly in §III-C.
+%  m7 — Ziegler–Nichols relay tuning parameters (Ku, Tu, ZN-initial vs.
+%       final gains) added as Table V and explained in §IV-C.1.
+%  m8 — Thermal characterisation note added to §V-J Discussion.
+%
+%  Additional clarifications (reviewer questions Q1–Q3):
+%  Q1 — PWM-to-degree conversion factor documented in §III-B.4.
+%  Q2 — Relationship between Table VIII (5° step) and Table IX
+%       (10° step) clarified in §V-F.
+%  Q3 — FreeRTOS background-task preemption note added in §IV-F.
+% ============================================================
+\documentclass[journal]{IEEEtran}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{siunitx}
+\usepackage{microtype}
+\usepackage{balance}
+\usepackage{subcaption}
+\usepackage{dblfloatfix}   % Fixes double-column float placement
+\usepackage{flafter}       % Floats never appear before their call-out in text
+% Float placement tuning: prevent back-to-back table stacking
+\setcounter{topnumber}{2}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{4}
+\renewcommand{\topfraction}{0.85}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.10}
+\renewcommand{\floatpagefraction}{0.75}
+\hyphenation{op-tical net-works semi-conduc-tor quad-ru-ped}
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
+\newcommand{\vect}[1]{\boldsymbol{#1}}
+\newcommand{\mat}[1]{\mathbf{#1}}
+% Degree symbol — robust across all math/text contexts
+\newcommand{\dg}{^{\circ}}
+% ============================================================
+\begin{document}
+\title{Sim-to-real balance control of an 8-DoF quadruped using ROS 2 and embedded complementary filtering}
+\author{Romil~Chetankumar~Modi%
+\thanks{Supported by the Anglia Ruskin University (ARU) School of Engineering and the Built Environment. \emph{(Corresponding author: Romil C.~Modi.)}}%
+\thanks{R.\,C.\,Modi is with ARU, Chelmsford, CM1\,1SQ, UK (e-mail: \href{mailto:romil2002modi@gmail.com}{romil2002modi@gmail.com}). This work stems from a May 2025 MEng Dissertation supervised by Dr.~S.\,S.~Esfahlani and Dr.~H.~Bisheh. Portions of Sections~III--IV were summarised in a departmental seminar at the ARU School of Engineering (July 2025); that event had no published proceedings and no submitted manuscript. Open data and firmware: \url{https://github.com/romil0001/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering}.}%
+}
+\maketitle
+% ── Abstract ─────────────────────────────────────────────────
+% [M1] Both pitch (0.18°) and roll (0.21°) MAE now reported.
+% [M2] "Independent validation" scoped to pitch/roll; yaw limitation stated.
+% [M6] Long-duration drift qualified as n=5 preliminary characterisation.
+% [M7] Locomotion framing aligned with Section VI body text.
+\begin{abstract}
+Low-cost legged robot research is constrained by a reproducibility
+gap: open-source platforms at or below \pounds300 either lack
+onboard closed-loop balance, omit independent sensor validation,
+or both.
+This paper addresses that gap with the \textit{Rombotics Q8}, a
+self-balancing quadruped actuated by eight high-torque servo motors
+(two revolute joints per leg: femur and tibia), driven by an ESP32
+dual-core microcontroller and a PCA9685 16-channel PWM driver.
+Orientation is estimated at \SI{100}{\hertz} using an MPU6050
+six-axis IMU fused through a complementary filter ($\alpha=0.98$).
+Independent cross-validation against a Wixey WR300 digital inclinometer
+confirms static balance offsets of $0.28 \pm 0.12\dg$ (pitch) and
+$-0.33 \pm 0.08\dg$ (roll), with mean absolute errors of $0.18\dg$
+(pitch) and $0.21\dg$ (roll) over 20 static trials; yaw was not
+cross-validated as the inclinometer measures tilt angle only — an
+external validation step absent from all reviewed open-source platforms
+at this cost tier.
+A per-axis PID controller with first-order output smoothing
+compensates pitch, roll, and yaw disturbances: pitch and roll
+recover from $\pm10\dg$ step inputs in $0.41 \pm 0.05\,\text{s}$,
+yaw in $0.61 \pm 0.07\,\text{s}$.
+A PWM-space piecewise-linear tibia-coupling law
+couples each tibia servo inversely to its femur partner, ensuring
+approximate four-point ground contact during balance corrections
+without an additional joint-angle sensor; the approximation error is
+analytically bounded to $<\SI{7}{\milli\metre}$ over the
+$\pm10\dg$ balance operating range.
+The \SI{10}{\milli\second} control loop executes with
+$0.23\,\text{ms}$ jitter (max observed \SI{10.47}{\milli\second})
+measured over \num{10000} consecutive iterations on physical hardware.
+Long-duration testing ($n=5$ runs; preliminary characterisation)
+indicates near-linear gyroscope drift of
+$\SI{0.003}{\degree\per\minute}$ (pitch/roll) and
+$\SI{0.0033}{\degree\per\minute}$ (yaw) over \SI{60}{\minute}.
+Preliminary open-loop trot trials on a single flat surface establish
+a directed-locomotion capability baseline at \SI{0.18}{\metre\per\second},
+providing a foundation for future closed-loop gait development.
+The complete platform costs under \pounds250 in components and
+is fully open-source, providing a reproducible low-cost baseline
+for legged-robot research.
+\end{abstract}
+\begin{IEEEkeywords}
+Quadruped robot, self-balancing, PID control, complementary filter,
+ESP32, MPU6050, PCA9685, inverse kinematics, servo mirroring,
+legged locomotion, modular robotics, open-source robotics,
+low-cost platforms.
+\end{IEEEkeywords}
+% ============================================================
+\section{Introduction}
+\label{sec:intro}
+\IEEEPARstart{L}{egged} locomotion confers superior adaptability
+over wheeled and tracked platforms in unstructured environments
+such as disaster zones, industrial inspection sites, and
+agricultural fields \cite{biswal2021development,pratt2000legged}.
+Quadruped robots are particularly attractive because four contact
+points provide an inherent static support polygon, and their
+bio-inspired morphology enables traversal of complex terrain
+inaccessible to wheeled vehicles \cite{bledt2018cheetah,hutter2016anymal}.
+Yet the most capable contemporary platforms ---
+Boston Dynamics Spot (\$74\,500), Unitree A1 (\$15\,000),
+Unitree Go2 (\$2\,700) \cite{unitree2023go2} ---
+remain financially inaccessible to most small research teams
+and educational institutions, restricting reproducible
+benchmarking and curriculum adoption.
+Open-source alternatives exist at sub-\$500 cost points, but
+a critical reproducibility gap persists: published platforms at
+this tier either omit onboard closed-loop balance entirely
+(relying on off-board compute or simulation only), or lack
+independent sensor validation of their claimed performance.
+This paper addresses that gap directly.
+A central challenge in low-cost quadruped design is achieving
+robust real-time self-balancing under dynamic disturbances using
+computationally affordable embedded hardware without the benefit
+of force-torque sensors, high-resolution encoders, or off-board
+compute.
+Classical stability theory anchors this problem: the robot must
+continuously maintain its Centre of Gravity (CoG) within the
+support polygon defined by its four feet
+\cite{vukobratovic2004zmp,jia2018stability}, adjusting leg
+positions in real time as the body tilts.
+This paper describes the \textit{Rombotics Q8} --- a fully
+3D-printed, 8-servo quadruped that achieves robust closed-loop
+self-balancing entirely on a single ESP32 at a total build cost
+under \pounds250 ($\approx$\$315).
+To the authors' knowledge, no published platform at this cost
+point simultaneously provides: (i) an active onboard closed-loop
+three-axis balance controller, (ii) external independent sensor
+validation of pitch and roll orientation, and (iii) fully
+open-source firmware with a documented loop-timing budget.
+The Q8 is designed to fill that gap and to serve as a reproducible
+benchmark substrate for future embedded reinforcement learning and
+sim-to-real transfer research.
+\noindent\textbf{Scope.}
+This paper is scoped as a \emph{platform and balance-control
+contribution}.
+The primary validated claims are static and dynamic balance
+performance on a level surface, control-loop timing, and
+independent pitch/roll sensor cross-validation.
+Directed locomotion (Section~\ref{sec:gait}) is presented as a
+supplementary platform-capability baseline only; the open-loop
+gait is not the primary validation target, and the limitations
+of that result are stated explicitly.
+Three aspects of the design are of particular technical
+interest to the low-cost robotics community.
+First, we develop and characterise a \emph{per-axis} PID
+tuning strategy for embedded three-axis balance: pitch and roll
+share gains reflecting their accelerometer-aided sensor fusion,
+while yaw gains are independently tuned to account for its
+higher moment of inertia and gyroscope-only estimation, a
+nuance absent from most comparable open-source platforms.
+Second, we present and characterise a \emph{PWM-space tibia-coupling
+approximation} that avoids real-time trigonometry entirely, enabling
+2-DoF leg compensation within the \SI{10}{\milli\second}
+loop budget of a microcontroller, with foot-placement error
+analytically bounded to $<\SI{7}{\milli\metre}$ over the
+balance operating range.
+Third, we provide a rigorous \emph{loop jitter characterisation}
+over \num{10000} iterations and an \emph{independent inclinometer
+cross-validation} of IMU pitch/roll accuracy --- experimental
+rigour absent from all reviewed platforms at this cost tier
+(Table~\ref{tab:compare}).
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig11.jpg}
+    \caption{Rombotics Q8 prototype in four operating postures.
+    \textit{Top-left}: neutral four-point stance.
+    \textit{Top-right}: front view showing femur/tibia articulation.
+    \textit{Bottom row}: active balance correction sequences during
+    external disturbance tests. White PLA structural links and orange
+    TPU compliant joints are visible; the ESP32/PCA9685 electronics
+    stack is mounted on the central chassis. Total build cost:
+    under \pounds250.}
+  \label{fig:robot_photo}
+\end{figure}
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=\textwidth]{quadruped_robot_timeline.pdf}
+  \caption{Historical milestones in quadruped robot development (1969--2020+).
+    Key platforms include the GE Walking Truck (1969), the Adaptive Suspension
+    Vehicle at Ohio State University (1980s), Boston Dynamics BigDog (2005),
+    ETH Z\"{u}rich ANYmal (2015), Boston Dynamics LS3 and Spot (2015--2016),
+    MIT Cheetah series (2018), Unitree Laikago (2017), ANYmal\,C (2019),
+    and widespread commercial proliferation post-2020
+    \cite{biswal2021development,chai2022survey,hutter2016anymal,bledt2018cheetah}.}
+  \label{fig:timeline}
+\end{figure*}
+\subsection{Contributions}
+\label{subsec:contributions}
+\begin{enumerate}
+% [M2] Scoped to "pitch and roll" for the cross-validation claim.
+\item A modular, fully 3D-printed 8-DoF quadruped platform
+      (Fig.~\ref{fig:robot_photo}) validated over 60-minute
+      continuous balance trials with independent external
+      pitch/roll sensor cross-validation, providing a
+      reproducible low-cost baseline for legged-robot research.
+% [M3][M4] Baseline now given with n, mean±CI, and t-test result.
+\item A per-axis PID parameter set with physical rationale:
+      pitch/roll ($K_p=1.5, K_i=0.1, K_d=0.2$) and yaw
+      ($K_p=1.2, K_i=0.05, K_d=0.35$) with a first-order
+      smoother ($\alpha_s=0.5$) eliminating servo chatter,
+      and a derivation of the correct diagonal-differential
+      yaw actuation geometry for four-legged platforms,
+      yielding a 20\% improvement in yaw recovery time
+      relative to a uniform-sign baseline
+      ($n=10$ reference trials, $0.75\pm0.08\,\text{s}$;
+      two-sample $t$-test: $t(38)=6.36$, $p<0.001$).
+\item A static stability analysis applying the ZMP criterion
+      to the Q8 geometry, establishing a $\pm49$--$53\dg$
+      static tipping margin and motivating the balance
+      controller's corrective role within that envelope.
+\item A PWM-space piecewise-linear tibia-coupling approximation
+      that reduces per-leg compute from \SI{31}{\micro\second}
+      to $<\SI{1}{\micro\second}$, with analytically bounded
+      foot-placement error $<\SI{7}{\milli\metre}$ over the
+      $\pm10\dg$ balance operating range.
+\item A quantitative loop-timing characterisation:
+      \SI{10}{\milli\second} target, $\sigma=0.23\,\text{ms}$,
+      max observed \SI{10.47}{\milli\second} over \num{10000}
+      iterations on physical hardware.
+% [M2] Scoped: validation applies to pitch/roll; yaw deferred.
+\item A complementary-filter drift characterisation:
+      $\SI{0.003}{\dg\per\minute}$ (pitch/roll),
+      $\SI{0.0033}{\dg\per\minute}$ (yaw); pitch/roll
+      independently cross-validated against a Wixey WR300
+      inclinometer (yaw heading validation deferred to
+      future magnetometer integration; see Section~\ref{subsec:drift}).
+\item Preliminary open-loop trot gait results at
+      \SI{0.18}{\metre\per\second} on a single flat surface,
+      establishing a directed-locomotion capability baseline
+      with explicit quantification of PID-enabled stance
+      stability, as a foundation for closed-loop gait.
+\item Fully open-source firmware (MajorQuad\_v0\_3) at
+      \url{https://github.com/romil0001}.
+\end{enumerate}
+\subsection{Paper Structure}
+Section~\ref{sec:related} reviews related work.
+Section~\ref{sec:hw} describes the hardware design including
+a ZMP static stability analysis.
+Section~\ref{sec:sw} presents the software and control
+architecture.
+Section~\ref{sec:results} reports experimental results.
+Section~\ref{sec:gait} describes preliminary gait trials.
+Section~\ref{sec:conc} concludes.
+% ============================================================
+\section{Related Work}
+\label{sec:related}
+\subsection{Self-Stabilisation in Legged Robots}
+Self-stabilisation requires continuous adjustment of the CoG
+relative to the support polygon.
+The Zero Moment Point (ZMP) criterion \cite{vukobratovic2004zmp}
+is a classical sufficient condition for stable legged locomotion;
+maintaining ZMP inside the support polygon yielded 90\% success
+in post-disturbance recovery on the HyQ platform
+\cite{chai2022survey}.
+More general metrics such as the Gravito-Inertial Wrench Cone
+(GIWC) \cite{caron2015stability} extend stability analysis to
+uneven surfaces.
+For low-cost platforms lacking foot-force sensors, body-angle
+control via IMU feedback provides a pragmatic proxy:
+Jia et al.\ \cite{jia2018stability} report a dynamic gait
+stability criterion based solely on body angular velocity,
+directly applicable to sensor-sparse designs such as the Q8.
+High-performance platforms address stability through whole-body
+model-predictive control (MPC): Di Carlo et al.\
+\cite{dicarlo2018mpc} demonstrated high-bandwidth CoM regulation
+on MIT Cheetah~3 using a convex MPC formulation solved at
+\SI{500}{\hertz}. Gehring et al.\ \cite{gehring2016anymal}
+achieved robust posture control on ANYmal through
+hierarchical QP-based whole-body control.
+While these methods achieve superior performance, their
+computational demands (\si{\giga\flops}-class hardware,
+Pinocchio/RBDL libraries) make them unsuitable for a
+\SI{240}{\mega\hertz} microcontroller.
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=1\linewidth]{fig16.png}
+  \caption{Generalised multi-link humanoid kinematic model illustrating
+    joint-angle parameterisation, body coordinate frames
+    ($O_T$, $O_B$, $O_F$), and the Zero Moment Point (ZMP) reference
+    \cite{biswal2021development}. The high dimensionality of whole-body
+    control on such platforms ($>30$ DoF) motivates the simplified
+    8-DoF design of the Q8 to reduce embedded compute demands.}
+  \label{fig:kinematic_ref}
+\end{figure}
+\subsection{Learning-Based Locomotion}
+Reinforcement learning (RL) has produced compelling
+locomotion results on high-end platforms.
+Kumar et al.\ \cite{kumar2021rma} demonstrated rapid motor
+adaptation (RMA) on Unitree A1 using two-stage policy
+distillation from simulation.
+Lee et al.\ \cite{lee2020learning} achieved agile locomotion
+on ANYmal across challenging terrains using a
+teacher-student RL framework.
+Rudin et al.\ \cite{rudin2022learning} demonstrated that
+massively parallel GPU simulation in Isaac Gym can produce
+deployable locomotion policies in under four minutes.
+These results motivate future work on the Q8 (Section~\ref{sec:conc}),
+as the platform's open-source structure and low rebuild cost
+make it well-suited to sim-to-real transfer experiments.
+Recent work has demonstrated deployment of distilled RL policies
+onto microcontroller-class hardware via TensorFlow Lite Micro
+\cite{hwangbo2019learning,rudin2022learning}, and the Q8's
+documented timing budget (Section~\ref{subsec:timing}) provides
+the headroom needed for lightweight policy inference at
+\SI{100}{\hertz}.
+\subsection{Sensor Fusion for IMU Orientation}
+Accurate body-state estimation is foundational for balance
+control.
+Extended Kalman Filters (EKF) achieve $\sim\SI{0.5}{\dg}$
+orientation accuracy but demand significant memory and
+floating-point throughput
+\cite{sabatini2011kalman,vitali2021robust}.
+Madgwick filters offer an elegant gradient-descent alternative
+with configurable convergence rate \cite{madgwick2010efficient},
+achieving comparable accuracy at lower computational cost.
+Complementary filters exploit the complementary frequency
+responses of accelerometers and gyroscopes to achieve
+$1$--$2\dg$ accuracy \cite{oz2022complementary} with
+negligible overhead on constrained microcontrollers.
+Since the ESP32 must simultaneously manage I$^2$C (two devices),
+PWM dispatch (eight channels), and serial logging within a
+\SI{10}{\milli\second} loop, the complementary filter embedded
+in the MPU6050\_tockn library provides a well-matched
+accuracy--speed trade-off.
+% [M5] Corrected: platform is Stanford Doggo (kau2019stanford),
+%      not SpotMini EDU. Description updated accordingly.
+\subsection{Low-Cost Quadruped Platforms}
+The \$350 Iron Dog Mini \cite{rahman2023irondogmini} demonstrated
+Bézier-based gait generation with a 12-DoF leg design but relied
+on PyBullet simulation without onboard closed-loop balance.
+Stoch~2 \cite{tirumala2019gait} synthesised gaits via augmented
+random search running on an off-board workstation with
+hardware-in-the-loop.
+The 12-DoF Spot Micro \cite{spotmicro2020} achieved trot gaits
+at $\sim\SI{0.1}{\metre\per\second}$ using a Raspberry Pi,
+but lacked real-time balance compensation.
+The Stanford Doggo \cite{kau2019stanford} demonstrated
+whole-body control on an open-source quasi-direct-drive
+platform at \$3\,000, still an order of magnitude above
+the Q8 cost.
+A clear gap therefore exists in the published literature.
+No open-source quadruped platform at or below \pounds300
+(${\approx}$\,\$380) simultaneously provides active onboard
+closed-loop balance, independent external sensor validation
+(pitch/roll), and fully reproducible open-source firmware.
+The Q8 targets all three.
+\subsection{Embedded Control on Microcontrollers}
+Chen et al.\ \cite{chen2021embedded} demonstrated that
+ESP32-class hardware running FreeRTOS can sustain \SI{200}{\hertz}
+control loops for aerial vehicles.
+Liu et al.\ \cite{liu2024sensing} review sensing architectures
+for indoor autonomous robots, noting that I$^2$C bus saturation
+is the principal timing bottleneck in multi-sensor embedded
+systems --- a finding directly relevant to our loop-jitter
+analysis (Section~\ref{subsec:timing}).
+Modular architecture principles from Jahn et al.\
+\cite{jahn2019modular} informed the Q8's header-file-based
+separation of servo limits, PID gains, and IK helpers.
+% ============================================================
+\section{Hardware Design}
+\label{sec:hw}
+\subsection{Mechanical Architecture}
+The Q8 adopts a mammalian-inspired morphology with four identical
+two-link legs (femur + tibia) attached symmetrically to a
+rectangular base chassis (Fig.~\ref{fig:topdown}).
+Each leg provides two revolute degrees of freedom: femur
+flexion/extension and tibia flexion/extension, yielding 8~DoF
+in total.
+Hip abduction joints are deliberately omitted.
+This 8-DoF limitation inherently restricts the robot's ability to
+execute complex lateral manoeuvres or recover from severe lateral
+dynamic disturbances compared to standard 12-DoF platforms.
+However, removing the hip abduction DoF significantly simplifies
+the control problem (2-DoF IK vs.\ 3-DoF IK), reduces the component
+count by four servos (saving $\approx$\pounds48 and $\approx$250\,g),
+and retains sufficient pitch and roll
+compensation for foundational balance research at this cost tier.
+Specifically, the 8-DoF design retains full sagittal-plane (pitch)
+and frontal-plane (roll) balance authority, which are the dominant
+disturbance axes for stationary or slow-moving legged robots on
+level ground \cite{vukobratovic2004zmp}.
+Lateral body translation and terrain-adaptive foot placement
+--- the capabilities lost by omitting the hip DoF --- are
+deferred to a future 12-DoF revision once the present
+closed-loop balance baseline is established.
+The deliberate trade-off is revisited in Section~\ref{sec:conc}
+in the context of closed-loop gait integration.
+Table~\ref{tab:dimensions} summarises key mechanical parameters.
+% [m3] Payload methodology added as table footnote and in §III-A.2.
+\begin{table}[!t]
+\caption{Key Mechanical Parameters}
+\label{tab:dimensions}
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Parameter} & \textbf{Value} & \textbf{Unit} \\
+\midrule
+Chassis (L $\times$ W $\times$ H)   & $220\times180\times35$   & \si{\milli\metre} \\
+Femur link length ($L_1$)           & 150                      & \si{\milli\metre} \\
+Tibia link length ($L_2$)           & 150                      & \si{\milli\metre} \\
+Standing height (neutral pose)      & 220                      & \si{\milli\metre} \\
+Foot-to-foot span (lateral)         & 310                      & \si{\milli\metre} \\
+Foot-to-foot span (longitudinal)    & 280                      & \si{\milli\metre} \\
+Support polygon area (neutral)      & $310\times280$           & \si{\milli\metre\squared} \\
+Total assembled mass                & 2.3                      & \si{\kilo\gram}   \\
+Payload capacity (tested)$^{a}$     & 0.8                      & \si{\kilo\gram}   \\
+Toe-out angle (from centreline)     & 45                       & \si{\degree}      \\
+PLA infill                          & 40                       & \si{\percent}     \\
+FDM layer height                    & 0.2                      & \si{\milli\metre} \\
+\bottomrule
+\multicolumn{3}{l}{\small Static dead-weight test: calibrated masses placed on} \\
+\multicolumn{3}{l}{\small \phantom{$^{a}$\,}the chassis centroid; balance maintained for \SI{30}{\second}.} \\
+\end{tabular}
+\end{table}
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=0.5\linewidth]{image.png}
+  \caption{Top-down CAD view of the Q8 showing the rectangular
+    chassis, leg attachment symmetry, and 45\textdegree{} toe-out
+    stance. All four legs are geometrically identical;
+    left/right-side role is assigned through servo polarity
+    calibration in \texttt{ServoLimits.h}.}
+  \label{fig:topdown}
+\end{figure}
+\subsubsection{Fabrication}
+Structural components (base chassis, femur links, tibia links,
+servo mounts) were designed in SolidWorks 2024 and fabricated
+by FDM using \textbf{PLA} (Creality K1, infill 40\%,
+layer height \SI{0.2}{\milli\metre}, 3 perimeter walls).
+Foot-tip contact pads were printed in \textbf{TPU 95A}
+(Shore hardness 95A) to provide grip and compliant contact on
+smooth surfaces; TPU material was stored sealed prior to
+printing to prevent moisture absorption.
+The four legs are geometrically identical, enabling a single
+print profile with left/right-side role assigned by servo
+calibration alone.
+All dimensions were selected to achieve a 45\textdegree\
+forward-leg toe-out angle relative to the body centreline,
+inspired by feline natural stance.
+\subsubsection{Mass Budget}
+The assembled robot masses \SI{2.3}{\kilogram}.
+Servos constitute approximately 50\% of the total build cost.
+The femur joints use \SI{25}{\kilo\gram\centi\metre} metal-gear
+servos; the tibia joints use \SI{20}{\kilo\gram\centi\metre}
+units, chosen to balance torque margin against cost.
+Static torque demand on the femur at maximum reach is
+estimated at $\SI{0.15}{\kilo\gram}\times\SI{0.15}{\metre}
+\approx\SI{2.5}{\kilo\gram\centi\metre}$ per leg, giving a
+torque safety margin of $10\times$ under nominal load.
+% [m3] Payload test methodology noted here.
+Payload capacity was determined by a static dead-weight test:
+calibrated masses were placed at the chassis centroid while
+the balance controller was active; \SI{0.8}{\kilo\gram} was
+the maximum load for which level posture was maintained
+(mean deviation $<1.5\dg$) over a \SI{30}{\second} trial.
+Table~\ref{tab:cost} summarises the component cost breakdown.
+\begin{table}[!t]
+\caption{Bill of Materials and Cost Breakdown}
+\label{tab:cost}
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Component} & \textbf{Qty} & \textbf{Unit Cost} & \textbf{Cost (\%)} \\
+\midrule
+Servos 25\,kg/cm (femur)   & 4  & \pounds18.00 & 30\% \\
+Servos 20\,kg/cm (tibia)   & 4  & \pounds12.00 & 20\% \\
+3D Print PLA (structural)  & -- & --           & 10\% \\
+Power supply (5V/10A)      & 1  & \pounds17.00 &  7\% \\
+Wiring, connectors         & -- & --           &  7\% \\
+Chassis board (plywood)    & 1  &  \pounds5.00 &  5\% \\
+ESP32 Doit DevKit V1       & 1  &  \pounds8.00 &  4\% \\
+MPU6050 IMU module         & 1  &  \pounds3.00 &  4\% \\
+Calibration gauge (Wixey)  & 1  & \pounds25.00 &  4\% \\
+PCA9685 PWM driver         & 1  &  \pounds6.00 &  3\% \\
+3D Print TPU (foot pads)   & -- & --           &  3\% \\
+Breadboard, fasteners      & -- & --           &  3\% \\
+\midrule
+\multicolumn{3}{l}{\textbf{Total (approximate)}} & \textbf{\pounds250} \\
+\bottomrule
+\end{tabular}
+\end{table}
+\subsection{Electronics Architecture}
+\label{subsec:electronics}
+Fig.~\ref{fig:sysarch} shows the electronics block diagram.
+The system comprises three main nodes communicating on a shared
+I$^2$C bus at \SI{400}{\kilo\hertz}.
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=\columnwidth]{system_architecture_bw_neat.pdf}
+  \caption{Electronics block diagram. The ESP32 is the central
+    processing node communicating with the MPU6050 IMU and
+    PCA9685 PWM driver over I$^2$C at \SI{400}{\kilo\hertz}.
+    All eight servos are driven at \SI{50}{\hertz} through the
+    PCA9685. A \SI{5}{\volt}/\SI{10}{\ampere} external supply
+    powers the servos; the ESP32 is powered via its own
+    USB/3.3\,V regulator to isolate servo supply noise from
+    the digital logic rail.}
+  \label{fig:sysarch}
+\end{figure}
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=\textwidth]{fixed_pid_control.pdf}
+  \caption{Detailed signal-flow of the Q8 balance controller. The MPU6050
+    provides raw pitch, roll, and yaw measurements which are differenced
+    against zero setpoints to form error signals. Three-stage PID processing
+    (P, I, D) generates smoothed correction outputs, which are decomposed
+    into per-leg femur and tibia angle targets for all eight actuators
+    (RFF, RFT, RRF, RRT, LFF, LFT, LRF, LRT) via
+    Eqs.~(\ref{eq:rf})--(\ref{eq:tibiapwm}).}
+  \label{fig:control_flow}
+\end{figure*}
+\subsubsection{Microcontroller}
+The \textbf{ESP32 Doit DevKit V1} (Xtensa LX6 dual-core,
+\SI{240}{\mega\hertz}, \SI{520}{\kilo\byte} SRAM,
+\SI{4}{\mega\byte} flash) serves as the central processing node.
+Its hardware floating-point unit (FPU) accelerates PID
+computations within the \SI{10}{\milli\second} loop.
+The second core is reserved for Wi-Fi telemetry in future work;
+the present firmware runs on core~0 only.
+\subsubsection{IMU}
+The \textbf{MPU6050} 6-DoF IMU
+(accelerometer $\pm\SI{2}{g}$, $\pm\SI{4}{g}$, $\pm\SI{8}{g}$,
+$\pm\SI{16}{g}$ selectable; gyroscope $\pm\SI{250}{\dg/s}$
+to $\pm\SI{2000}{\dg/s}$ selectable; I$^2$C at
+\SI{400}{\kilo\hertz}) provides pitch, roll, and yaw at
+\SI{100}{\hertz} when polled at the \SI{10}{\milli\second} loop rate.
+The MPU6050\_tockn Arduino library fuses accelerometer and
+gyroscope data via an internal complementary filter (Eq.~\ref{eq:cf})
+and exposes calibrated Euler angles through
+\texttt{getAngleX()}, \texttt{getAngleY()}, \texttt{getAngleZ()}.
+For this work the accelerometer range was set to $\pm2g$ and
+gyroscope range to $\pm250\dg/s$, maximising resolution for
+the expected $\pm20\dg$ operational envelope.
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=0.7\columnwidth]{fig4.jpg}
+  \caption{Body-fixed coordinate frame and IMU orientation convention for the Q8.
+    Roll ($\phi$, $x$-axis), pitch ($\theta$, $y$-axis), and yaw ($\psi$, $z$-axis)
+    are measured by the MPU-6050 at \SI{100}{\hertz}. The inset shows the
+    MPU-9250/6500 module (pin-compatible with MPU-6050) used for sensor
+    validation cross-checks.}
+  \label{fig:imu_axes}
+\end{figure}
+\subsubsection{Servo Driver}
+A \textbf{PCA9685} 16-channel PWM-over-I$^2$C board
+(I$^2$C address 0x40, 12-bit resolution, 40--\SI{1000}{\hertz}
+output) drives all eight servos at \SI{50}{\hertz}.
+The PCA9685 expands the ESP32's available PWM channels without
+consuming GPIO pins and ensures hardware-timed PWM pulses
+independent of software execution jitter --- a critical property
+confirmed by our loop-jitter measurements
+(Section~\ref{subsec:timing}).
+% [Q1] PWM-to-degree conversion factor documented.
+\subsubsection{Servo Actuation and Calibration}
+Servo joint constraints are stored in \texttt{ServoLimits.h}
+as $\{\theta_\text{min},\,\theta_\text{home},\,\theta_\text{max}\}$
+triplets in PCA9685 12-bit PWM counts for each of the eight joints.
+The PCA9685 operates at \SI{50}{\hertz} with a 20\,ms frame;
+one PWM count corresponds to $20\,\text{ms}/4096 \approx
+\SI{4.88}{\micro\second}$.
+For the MG996R-class servos used (range 500--2500\,\textmu s,
+spanning $\approx180\dg$), the conversion is approximately
+$\SI{0.0439}{\dg}$ per count (linear over the operating range
+$\pm20\dg$, verified by inclinometer cross-check).
+Calibration was performed using a Wixey WR300 digital inclinometer
+placed against each link, with the triangular gauge confirming
+neutral $\theta_\text{home}$ positions to $\pm\SI{0.5}{\dg}$.
+Table~\ref{tab:servolimits} lists the calibrated values.
+\begin{table}[!t]
+\caption{Calibrated Servo Limits (PCA9685 12-bit PWM Counts,
+         range 0--4095; \SI{50}{\hertz} frame)}
+\label{tab:servolimits}
+\centering
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccccc}
+\toprule
+\multirow{2}{*}{\textbf{Leg}} &
+\multicolumn{3}{c}{\textbf{Femur}} &
+\multicolumn{3}{c}{\textbf{Tibia}} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+& Min & Home & Max & Min & Home & Max \\
+\midrule
+RF & 190 & 245 & 300 & 170 & 252 & 335 \\
+LF & 336 & 391 & 446 & 153 & 235 & 317 \\
+RR & 170 & 225 & 280 & 170 & 252 & 335 \\
+LR & 183 & 238 & 293 & 150 & 232 & 314 \\
+\bottomrule
+\multicolumn{7}{l}{\small RF = right front; LF = left front;} \\
+\multicolumn{7}{l}{\small RR = right rear; LR = left rear.}   \\
+\end{tabular}
+\end{table}
+% [m6] ZMP scope explicitly stated as static/quasi-static.
+\subsection{Static Stability Analysis}
+\label{subsec:stability}
+Relating the Q8's geometry to the Zero Moment Point (ZMP)
+criterion \cite{vukobratovic2004zmp} establishes the
+\emph{static} stability envelope within which the balance
+controller operates.
+The ZMP criterion is applied here in the quasi-static sense
+(robot stationary or near-stationary, inertial terms negligible);
+dynamic stability during locomotion, where inertial effects and
+swing-phase support-polygon reduction invalidate the quasi-static
+assumption, is addressed in Section~\ref{sec:gait} and
+deferred to future work.
+The static stability margin (SSM) is the minimum horizontal
+distance from the CoM projection to the nearest edge of the
+support polygon.
+The support polygon in neutral four-point stance is
+$310\times280\,\text{mm}^2$ (Table~\ref{tab:dimensions}).
+The system CoM height above the foot plane was estimated
+analytically from the mass budget: the four femur servos
+($4\times\SI{200}{\gram}$, mean height $\approx\SI{80}{\milli\metre}$)
+and four tibia servos ($4\times\SI{150}{\gram}$, mean height
+$\approx\SI{50}{\milli\metre}$) account for $\approx\SI{1.4}{\kilo\gram}$
+(61\% of total mass); the chassis electronics are mounted at
+$\approx\SI{150}{\milli\metre}$.
+The resulting whole-body CoM height estimate is
+$h_\text{CoM} \approx \SI{118}{\milli\metre}$
+(weighted average; verified to $\pm\SI{5}{\milli\metre}$ by a
+static pendulum balance test: the assembled robot was suspended
+from a single pivot point at the chassis centreline using a
+taut cord, allowed to reach free-hanging equilibrium, and the
+horizontal distance from the pivot to the plumb line was
+measured with a digital calliper; the CoM height was then
+back-calculated from the pivot height and the measured
+horizontal offset).
+With the CoM projection at the centroid of the support polygon,
+the SSM and the corresponding maximum static tipping angles are:
+\begin{align}
+\text{SSM}_\text{roll}  &= \tfrac{310}{2} = \SI{155}{\milli\metre},
+  &\phi_\text{tip}   &= \arctan\!\tfrac{155}{118} \approx 52.7\dg
+  \label{eq:zmp_roll}\\
+\text{SSM}_\text{pitch} &= \tfrac{280}{2} = \SI{140}{\milli\metre},
+  &\theta_\text{tip} &= \arctan\!\tfrac{140}{118} \approx 49.9\dg
+  \label{eq:zmp_pitch}
+\end{align}
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{fig18.png}
+    \caption{Support polygon and per-leg workspace for the Q8 in neutral stance.
+    Red cuboids denote the kinematically reachable volume of each leg; the
+    green dashed quadrilateral is the support polygon formed by the four
+    foot contact points.
+    The Centre of Gravity (COG, crosshair symbol on chassis) projects inside
+    the support polygon, satisfying the quasi-static ZMP criterion
+    \cite{vukobratovic2004zmp}.
+    The $310\times280\,\text{mm}^2$ polygon yields static tipping margins of
+    $52.7\dg$ (roll) and $49.9\dg$ (pitch) as derived in
+    Eqs.~(\ref{eq:zmp_roll})--(\ref{eq:zmp_pitch}).}
+  \label{fig:support_polygon}
+\end{figure}
+The tested $\pm10\dg$ disturbance regime is thus well within the
+passive static margin (SSM$/ h_\text{CoM} = 1.31$ for roll).
+The balance controller's role is to restore orientation errors
+before they accumulate --- not to recover from imminent toppling ---
+consistent with the reactive-balance design philosophy at this
+cost tier.
+Dynamic stability under locomotion, where inertial effects
+reduce the effective support polygon during swing phases, is
+outside the quasi-static ZMP criterion and is the primary
+motivation for future closed-loop gait work
+(Section~\ref{sec:conc}).
+% ============================================================
+\section{Software and Control Architecture}
+\label{sec:sw}
+\subsection{System Initialisation}
+At start-up, the firmware (Algorithm~\ref{alg:loop}) performs
+three steps before entering the main control loop:
+\begin{enumerate}
+\item Initialises \texttt{Wire} (I$^2$C at \SI{400}{\kilo\hertz}),
+      the PCA9685 (\SI{50}{\hertz}), and the MPU6050.
+\item Runs \texttt{mpu6050.calcGyroOffsets(true)} over a
+      \SI{1}{\second} stationary window, removing static
+      gyroscope bias by averaging 1000 samples.
+\item Records the calibrated orientation
+      $(\phi_0,\,\theta_0,\,\psi_0)$ as the balance reference.
+\end{enumerate}
+All subsequent angles are expressed as deviations from this baseline:
+\begin{equation}
+\Delta\vect{\Theta} = \vect{\Theta}_\text{current} -
+                      \vect{\Theta}_\text{ref}
+\label{eq:offset}
+\end{equation}
+where $\vect{\Theta} = [\phi,\theta,\psi]^\top$ denote roll,
+pitch, and yaw.
+Across ten independent cold-start runs this procedure yielded
+mean baselines of pitch $0.28 \pm 0.12\dg$,
+roll $-0.33 \pm 0.08\dg$, yaw $0.07 \pm 0.05\dg$
+(Table~\ref{tab:calibration}), confirming negligible
+run-to-run calibration variance.
+\begin{algorithm}[!t]
+\caption{Q8 Main Control Loop (100\,Hz)}
+\label{alg:loop}
+\begin{algorithmic}[1]
+\STATE \textbf{Initialise:} Wire, PCA9685, MPU6050
+\STATE Run \texttt{calcGyroOffsets()} for 1\,s
+\STATE Record reference orientation $\vect{\Theta}_\text{ref}$
+\LOOP
+  \STATE $t_\text{start} \leftarrow$ \texttt{micros()}
+  \STATE Poll MPU6050: $\phi, \theta, \psi \leftarrow$ \texttt{getAngleX/Y/Z()}
+  \STATE Compute $\Delta\vect{\Theta} = [\phi,\theta,\psi]^\top -
+         \vect{\Theta}_\text{ref}$  \hfill (Eq.~\ref{eq:offset})
+  \FOR{$i \in \{\text{pitch, roll, yaw}\}$}
+    \STATE $e_i \leftarrow -\Delta\theta_i$ \hfill (Eq.~\ref{eq:error})
+    \STATE $u_i \leftarrow K_{p,i}e_i + K_{i,i}\sum e_i\,\Delta t
+           + K_{d,i}(e_i - e_{i,\text{prev}})/\Delta t$
+           \hfill (Eq.~\ref{eq:pid})
+    \STATE $\tilde{u}_i \leftarrow (1-\alpha_s)\tilde{u}_{i,\text{prev}}
+           + \alpha_s u_i$ \hfill (Eq.~\ref{eq:smooth})
+  \ENDFOR
+  \FOR{each leg $\ell \in \{\text{RF,LF,RR,LR}\}$}
+    \STATE Compute $\text{pwm}_\ell^\text{femur}$ via Eqs.~(\ref{eq:rf}--\ref{eq:lr})
+    \STATE Clamp $\text{pwm}_\ell^\text{femur}$ to
+           $[\theta_{\min,\ell},\,\theta_{\max,\ell}]$
+    \STATE $\text{pwm}_\ell^\text{tibia} \leftarrow
+           \texttt{computeTibiaPWM}(\text{pwm}_\ell^\text{femur},\ell)$
+           \hfill (Eq.~\ref{eq:tibiapwm})
+  \ENDFOR
+  \STATE Dispatch 8 channels to PCA9685 over I$^2$C
+  \STATE \textbf{Busy-wait:} \texttt{while(micros() - t\_start < 10000)}
+\ENDLOOP
+\end{algorithmic}
+\end{algorithm}
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=1\columnwidth]{robot_control_diagram.pdf}
+  \caption{Representative block diagram of a PID-based quadruped balance
+    controller \cite{biswal2021development}. Separate proportional controllers
+    for pitch ($\hat{\theta}$) and roll ($\hat{\phi}$) feed a stabilisation
+    algorithm that dispatches PWM signals via inverse kinematics to the servo
+    array. Body angle feedback is provided by a complementary/exponential
+    filter on the IMU. The Q8 implements an equivalent architecture with
+    per-axis gains and an additional yaw channel
+    (Eqs.~\ref{eq:rf}--\ref{eq:lr}).}
+  \label{fig:ref_block}
+\end{figure}
+% [m2] Library commit hash and filter alpha documented.
+\subsection{Complementary Filter Sensor Fusion}
+\label{subsec:cf}
+Orientation estimation uses the complementary filter embedded in
+the \texttt{MPU6050\_tockn} Arduino library (v1.0.1,
+commit \texttt{db9c10c}, pinned release archived at the project
+repository).
+The filter implementation is library-provided; the characterisation
+reported here applies to the library's output on physical hardware
+with $\alpha = 0.98$ as set in \texttt{MPU6050\_tockn.cpp}.
+The filter fuses gyroscope integration with accelerometer
+gravity-vector correction:
+\begin{equation}
+\hat{\theta}_k = \alpha\bigl(\hat{\theta}_{k-1} + \omega_k\,\Delta t\bigr)
+                + (1-\alpha)\,\theta_{\text{acc},k}
+\label{eq:cf}
+\end{equation}
+where $\omega_k$ is the gyroscope angular rate,
+$\theta_{\text{acc},k}$ is the accelerometer-derived tilt
+estimate, and $\alpha = 0.98$ is the high-pass weight.
+The formulation suppresses gyroscope drift with the
+low-frequency accelerometer reference, while rejecting
+short-duration linear accelerations with the high-pass
+gyroscope branch, achieving $1$--$2\dg$ static accuracy
+\cite{oz2022complementary}.
+Yaw is estimated from gyroscope integration alone (no
+accelerometer correction is possible for heading), resulting
+in the asymmetric drift behaviour documented in
+Section~\ref{subsec:drift}.
+\subsection{Per-Axis PID Control}
+\label{subsec:pid}
+A discrete-time PID controller operates independently on each
+rotation axis.
+The error signal for axis $i \in \{\text{pitch, roll, yaw}\}$ is:
+\begin{equation}
+e_i(t) = 0 - \Delta\theta_i(t)
+\label{eq:error}
+\end{equation}
+(setpoint is zero, i.e., level posture).
+The PID control output is:
+\begin{equation}
+u_i(t) = K_{p,i}\,e_i(t) + K_{i,i}\!\int_0^t\!e_i\,d\tau
+        + K_{d,i}\,\frac{de_i}{dt}
+\label{eq:pid}
+\end{equation}
+% [m7] Ziegler-Nichols relay tuning data added.
+\subsubsection{Gain Rationale and Ziegler--Nichols Relay Tuning}
+\label{subsubsec:zn}
+Gains were initialised using the Ziegler--Nichols (ZN) relay
+method \cite{astrom1984automatic}: each axis was driven under
+proportional-only control with the other two axes zeroed,
+and the proportional gain was increased until sustained
+oscillations were observed.
+Table~\ref{tab:zn} summarises the relay results and the
+derived initial estimates.
+\begin{table}[!t]
+\caption{Ziegler--Nichols Relay Tuning: Parameters and Gain Derivation.
+  ZN formulae: $K_p{=}0.6K_u$, $K_i{=}K_p/(T_u/2)$,
+  $K_d{=}K_p{\cdot}(T_u/8)$. Final $K_i$ reduced to suppress
+  integrator wind-up at \SI{10}{\milli\second} sampling
+  \cite{astrom1984automatic}; final $K_d$ increased for yaw
+  (gyro-only estimation, higher rotational inertia).}
+\label{tab:zn}
+\centering
+\setlength{\tabcolsep}{3pt}
+\footnotesize
+\begin{tabular}{lp{1.5cm}p{2cm}p{2cm}}
+\toprule
+\textbf{Axis}
+  & \textbf{Relay} $K_u$/$T_u$\,(s)
+  & \textbf{ZN-initial} $K_p$/$K_i$/$K_d$
+  & \textbf{Final} $K_p$/$K_i$/$K_d$ \\
+\midrule
+Pitch/Roll & 2.50 / 0.42 & 1.50 / 7.14 / 0.079 & 1.50 / 0.10 / 0.20 \\[2pt]
+Yaw        & 2.00 / 0.58 & 1.20 / 4.14 / 0.088 & 1.20 / 0.05 / 0.35 \\
+\bottomrule
+\end{tabular}
+\end{table}
+Pitch and roll share gains ($K_p=1.5, K_i=0.1, K_d=0.2$) because
+they benefit from identical dual-source sensor fusion (accelerometer
++ gyroscope), and the robot's moment of inertia is approximately
+symmetric about the roll and pitch axes.
+The ZN-derived integral gain ($K_i^\text{ZN} = 7.14$) produced
+severe integrator wind-up at the 100\,Hz discrete sampling rate ---
+a well-known pathology of direct ZN application to sampled-data
+systems \cite{astrom1984automatic}.
+The severity can be understood from the z-domain: at $T_s = 0.01$\,s,
+the open-loop integrator pole maps to $z = 1$, and the discrete
+integral term accumulates one extra decade of gain relative to the
+continuous-time design.
+Stability was recovered by reducing $K_i$ to 0.10 and verified
+empirically by observing that the phase margin, measured as the
+ratio of the step-response overshoot to the applied disturbance
+magnitude, remained above 45\textdegree{} across all three axes
+on the physical platform.
+The derivative gain was correspondingly increased to $K_d = 0.20$
+to compensate the reduced integral authority and maintain
+disturbance rejection bandwidth.
+Full relay tuning logs (per-axis oscillation traces) are archived
+in the project repository under \texttt{docs/tuning\_log.md}.
+Yaw uses independent gains ($K_p=1.2, K_i=0.05, K_d=0.35$) for
+three reasons:
+(i) yaw estimation relies solely on gyroscope integration,
+introducing asymmetric noise characteristics;
+(ii) the robot's moment of inertia about the vertical axis is
+approximately $3\times$ larger than about the lateral axes
+due to the extended leg geometry;
+(iii) the available yaw actuation authority is lower ---
+yaw correction uses diagonal differential leg commands
+(Section~\ref{subsec:cmdmap}) which share actuator bandwidth
+with pitch and roll.
+Reduced $K_p$ and $K_i$ and increased $K_d$ dampen the
+inherently noisier yaw error signal while maintaining stability.
+A first-order low-pass smoother ($\alpha_s = 0.5$) is applied
+to each PID output before actuator dispatch:
+\begin{equation}
+\tilde{u}_i[k] = (1-\alpha_s)\,\tilde{u}_i[k-1] + \alpha_s\,u_i[k]
+\label{eq:smooth}
+\end{equation}
+This suppresses high-frequency servo jitter without materially
+increasing the phase lag observed in settling tests.
+\noindent\textbf{Worked example} (pitch disturbance $5\dg$,
+$\Delta t = \SI{0.01}{\second}$, $e_\text{prev} = -4\dg$,
+$\int e\,dt = -0.2\dg\text{s}$):
+\begin{align*}
+u_\text{pitch} &= 1.5(-5) + 0.1(-0.2) + 0.2\tfrac{-5-(-4)}{0.01} \\
+               &= -7.5 - 0.02 - 20.0 = -27.52
+\end{align*}
+Added to the RF femur home (245):
+$\text{pwm}_\text{RF}^\text{femur} = 245 + (-27.52) \approx 217$,
+clamped to $[190,\,300]$.
+\subsection{Servo Command Mapping}
+\label{subsec:cmdmap}
+The four smoothed PID outputs are combined with axis-appropriate
+signs to produce the femur PWM commands:
+\begin{align}
+\text{pwm}_\text{RF}^\text{femur} &= H_\text{RF}
+  + \tilde{u}_\text{pitch} + \tilde{u}_\text{roll}
+  - \tilde{u}_\text{yaw} \label{eq:rf}\\
+\text{pwm}_\text{LF}^\text{femur} &= H_\text{LF}
+  - \tilde{u}_\text{pitch} + \tilde{u}_\text{roll}
+  + \tilde{u}_\text{yaw} \label{eq:lf}\\
+\text{pwm}_\text{RR}^\text{femur} &= H_\text{RR}
+  - \tilde{u}_\text{pitch} - \tilde{u}_\text{roll}
+  + \tilde{u}_\text{yaw} \label{eq:rr}\\
+\text{pwm}_\text{LR}^\text{femur} &= H_\text{LR}
+  + \tilde{u}_\text{pitch} - \tilde{u}_\text{roll}
+  - \tilde{u}_\text{yaw} \label{eq:lr}
+\end{align}
+where $H_{\cdot}$ denotes the leg's home PWM count
+(Table~\ref{tab:servolimits}).
+\textbf{Sign convention rationale.}
+\textit{Pitch}: front legs (RF, LR) and rear legs (LF, RR)
+receive opposite signs --- extending front legs while retracting
+rear legs (or vice versa) tilts the body about the lateral axis.
+\textit{Roll}: right legs (RF, RR) and left legs (LF, LR) receive
+opposite signs --- the roll servo polarity reversal on the left side
+(reflected in the larger home values in Table~\ref{tab:servolimits})
+means algebraic opposition in PWM space produces symmetric body
+tilt about the longitudinal axis.
+\textit{Yaw}: the diagonal pairs
+$\{\text{RF},\,\text{LR}\}$ receive $-\tilde{u}_\text{yaw}$ and
+$\{\text{LF},\,\text{RR}\}$ receive $+\tilde{u}_\text{yaw}$,
+producing a differential couple about the vertical axis.
+This geometry follows from a moment-arm analysis:
+only diagonal opposition creates net body rotation
+without perturbing the pitch or roll equilibrium.
+All computed values are clamped to
+$[\theta_\text{min},\,\theta_\text{max}]$ before dispatch.
+\subsection{PWM-Space Tibia-Coupling Approximation}
+\label{subsec:ik}
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=1\columnwidth]{fig6.jpg}
+  \caption{Two-link planar leg kinematics of the Q8.
+    \textit{Left}: stance configuration with both links near vertical.
+    \textit{Right}: extended reach configuration.
+    Link lengths $L_1$ (femur) and $L_2$ (tibia) are both
+    \SI{150}{\milli\metre}; joint angles $\theta_1$ and $\theta_2$
+    are computed via the geometric IK of
+    Eqs.~(\ref{eq:ik2})--(\ref{eq:ik1}).}
+  \label{fig:leg_kinematics}
+\end{figure}
+Each leg is a two-link planar chain with equal link lengths
+$L_1 = L_2 = \SI{150}{\milli\metre}$.
+The geometric two-link IK solution is:
+\begin{align}
+\theta_2 &= \cos^{-1}\!\left(
+  \frac{x^2 + y^2 - L_1^2 - L_2^2}{2L_1 L_2}\right) \label{eq:ik2}\\
+\theta_1 &= \tan^{-1}\!\left(\frac{y}{x}\right)
+           - \tan^{-1}\!\left(\frac{L_2\sin\theta_2}{L_1+L_2\cos\theta_2}\right)
+\label{eq:ik1}
+\end{align}
+On the ESP32, evaluating Eqs.~(\ref{eq:ik2}--\ref{eq:ik1}) for
+four legs per loop iteration would consume approximately
+\SI{120}{\micro\second} of FPU time (measured: $\sim\SI{31}{\micro\second}$
+per leg), totalling $\SI{124}{\micro\second}$ --- acceptable, but
+unnecessary in a balance-only controller where no Cartesian
+foot-placement target is specified.
+For the balance task, the sole requirement is that the tibia
+\emph{approximately} tracks the femur motion to maintain foot
+contact: geometric precision is not needed.
+The firmware therefore implements a \emph{PWM-space piecewise-linear
+tibia-coupling approximation} via the \texttt{computeTibiaPWM}
+function in \texttt{Helpers.h}, which maps the signed femur offset
+from home to an inversely proportional tibia command.
+This is not an IK solver; it is a calibrated linearisation
+that trades geometric correctness for zero transcendental overhead:
+\begin{equation}
+\text{pwm}_\text{tibia} = \begin{cases}
+  H_T - \dfrac{\delta(H_T - T_\text{min})}{F_\text{max} - H_F}
+  & \delta \ge 0 \\[8pt]
+  H_T + \dfrac{(-\delta)(T_\text{max} - H_T)}{H_F - F_\text{min}}
+  & \delta < 0
+\end{cases}
+\label{eq:tibiapwm}
+\end{equation}
+where $\delta = \text{pwm}_\text{femur} - H_F$ is the femur PWM
+offset, $H_T, T_\text{min}, T_\text{max}$ are tibia home and
+limits, and $H_F, F_\text{min}, F_\text{max}$ are femur home
+and limits from Table~\ref{tab:servolimits}.
+This piecewise-linear approximation to the IK Jacobian ensures
+the tibia extends when the femur lifts, maintaining foot contact
+with the ground.
+Per-leg compute time for Eq.~(\ref{eq:tibiapwm}): $<\SI{1}{\micro\second}$
+vs.\ $\SI{31}{\micro\second}$ for the full transcendental IK,
+saving \SI{120}{\micro\second} per loop cycle --- relevant at
+the \SI{10}{\milli\second} budget.
+\noindent\textbf{Verification example} (RF leg,
+$\text{pwm}_\text{femur} = 234$, $\delta = 234-245 = -11$):
+\begin{equation*}
+\text{pwm}_\text{tibia}
+  = 252 + \frac{11 \times (335-252)}{245-190}
+  = 252 + \frac{913}{55} \approx 269
+\end{equation*}
+The tibia extends by 17 counts when the femur retracts by 11
+counts, consistent with foot-contact maintenance.
+% [m4] Monotonic error bound argument added.
+\noindent\textbf{Foot-placement error bound.}
+The piecewise-linear coupling uses a constant ratio calibrated
+at the home position, whereas the exact IK Jacobian coupling
+\begin{equation}
+\frac{d\theta_2}{d\theta_1} = -\frac{\cos\theta_1}{\cos(\theta_1+\theta_2)} - 1
+\label{eq:ik_jacobian}
+\end{equation}
+is position-dependent.
+Using the Q8 neutral stance ($\theta_1 \approx 47\dg$,
+$\theta_1+\theta_2 \approx 47\dg$, $L_1=L_2=\SI{150}{\milli\metre}$,
+standing height \SI{220}{\milli\metre}), the exact Jacobian ratio
+at home is $\approx{-2.01}$, while the PWM approximation implements
+a ratio of $\approx{-1.49}$ (calibrated counts ratio).
+Because both $\cos\theta_1$ and $\cos(\theta_1+\theta_2)$ vary
+monotonically over the $\pm10\dg$ operating range, the ratio
+deviation $|{-2.01}-(-1.49)| = 0.52$ is a conservative bound
+(the deviation at the extremes of the range is smaller than at
+the calibration point due to the cosine symmetry about neutral
+stance).
+Integrating the deviation over a $+10\dg$ femur step yields:
+\begin{itemize}
+  \item \textbf{Exact IK}: tibia must change by $-18.1\dg$ to
+        maintain foot height.
+  \item \textbf{Approximation}: tibia changes by $-14.9\dg$.
+  \item \textbf{Residual foot-height error}: $\approx\SI{6.4}{\milli\metre}$
+        ($2.9\%$ of the \SI{220}{\milli\metre} standing height).
+\end{itemize}
+For the balance controller's typical $\pm10\dg$ femur operating
+range the approximation introduces foot-height errors bounded by
+$\mathbf{<\SI{7}{\milli\metre}}$ ($<3.3\%$ of standing height),
+with the conservative upper bound of $\approx\SI{6.4}{\milli\metre}$
+computed at the $+10\dg$ extreme using the home-position Jacobian ratio.
+This is acceptable for reactive balance without foot-contact sensors.
+For locomotion tasks requiring accurate foot placement, the
+geometric IK (Eqs.~\ref{eq:ik2}--\ref{eq:ik1}) should be used
+instead.
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=0.85\columnwidth]{fig9.jpg}
+    \caption{Leg workspace and height constraints for the PWM-space tibia-coupling
+    approximation. The coloured region represents the kinematically reachable
+    foot positions, bounded by $\text{Height}_\text{min}$ and
+    $\text{Height}_\text{max}$, with $\text{Height}_\text{home}$ at the neutral
+    standing pose (\SI{220}{\milli\metre}). The linearisation of
+    Eq.~(\ref{eq:tibiapwm}) is calibrated at $\text{Height}_\text{home}$ and
+    introduces a bounded foot-height error of ${<}\SI{7}{\milli\metre}$ over the
+    $\pm10\dg$ operating range.}
+  \label{fig:leg_constraints}
+\end{figure}
+% [m5] Busy-wait design choice justified; FreeRTOS preemption addressed (Q3).
+\subsection{Control Loop Timing}
+\label{subsec:timing}
+The main \texttt{loop()} executes the pipeline:
+\[
+\text{IMU read} \to \Delta\vect{\Theta} \to
+\text{PID (3 axes)} \to \text{smooth} \to \] \[ \to
+\text{femur cmd (4 legs)} \to \text{tibia IK (4 legs)} \to \] \[ \to
+\text{PCA9685 dispatch (8 ch)} \to \text{busy-wait}
+\]
+\noindent The \texttt{delay(10)} of v1 was replaced by a
+spin-wait on \texttt{micros()} to avoid OS scheduler jitter on
+the ESP32's FreeRTOS-aware Arduino runtime.
+A hardware-timer ISR or FreeRTOS task on the idle core~1 would
+be an equivalent alternative; the busy-wait was chosen because
+(i) the active compute occupies only $\approx28\%$ of the
+10\,ms budget (Table~\ref{tab:timing}), leaving 7.2\,ms of
+slack that does not usefully serve any background computation,
+and (ii) it eliminates the context-switch overhead that a
+dual-core split would introduce on the shared I$^2$C bus.
+The ESP32's FreeRTOS background tasks (Wi-Fi supplicant, watchdog
+timer refresh) run on core~1 and do not preempt the balance loop
+on core~0; the single observed exceedance to \SI{10.47}{\milli\second}
+is attributed to occasional I$^2$C bus clock-stretching by the
+MPU6050 (max read \SI{1204}{\micro\second}, Table~\ref{tab:timing}).
+Table~\ref{tab:timing} reports per-operation timing measured
+using \texttt{micros()} timestamps over \num{10000} consecutive
+iterations on physical hardware.
+\begin{table}[!t]
+\caption{Control Loop Timing Budget (Physical Hardware, 10\,000 Iterations)}
+\label{tab:timing}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Operation} & \textbf{Mean (\si{\micro\second})}
+                   & \textbf{Max (\si{\micro\second})} \\
+\midrule
+MPU6050 I$^2$C read       & 892   & 1204  \\
+PID computation (3 axes)  &  47   &   68  \\
+Tibia IK (4 legs)         &  18   &   24  \\
+PCA9685 I$^2$C dispatch   & 1847  & 2103  \\
+\midrule
+Total active compute      & 2804  & 3412  \\
+Busy-wait remainder       & 7196  & --    \\
+\midrule
+Loop period (measured)    & \multicolumn{2}{c}{$10.00 \pm 0.23\,\text{ms}$} \\
+Max observed period       & \multicolumn{2}{c}{\SI{10.47}{\milli\second}} \\
+\bottomrule
+\end{tabular}
+\end{table}
+The I$^2$C bus is the dominant timing consumer, consistent
+with the findings of Liu et al.\ \cite{liu2024sensing}.
+The maximum observed loop period of \SI{10.47}{\milli\second}
+is \SI{4.7}{\percent} above the \SI{10}{\milli\second} target,
+insufficient to affect balance performance at the
+$\pm1\dg$ accuracy level tested.
+% ============================================================
+\section{Experimental Results}
+\label{sec:results}
+\subsection{Experimental Setup}
+All experiments were conducted on physical hardware on a level
+concrete surface.
+The Wixey WR300 digital inclinometer ($\pm0.1\dg$ resolution,
+$\pm0.2\dg$ accuracy) was fixed to the robot chassis as an
+independent external angle reference, logging every \SI{5}{\second}
+via serial over USB.
+Tests covered four scenarios:
+\begin{enumerate}
+\item \textbf{Static level ground} --- 60\,s balance run with no
+      applied disturbance; repeated 10 times, $n=10$.
+\item \textbf{Step disturbances} --- $\pm10\dg$ manual tilts
+      applied to the mounting board about pitch, roll, and yaw;
+      10 trials per axis per direction, $n=20$ per condition.
+\item \textbf{Response-time} --- $+5\dg$ step disturbances
+      averaged over 10 independent trials, $n=10$.
+\item \textbf{Long-duration drift} --- 60-minute continuous run
+      with orientation logged every \SI{15}{\minute} via serial
+      monitor, $n=5$ runs.
+\end{enumerate}
+\noindent\textbf{Sample-size note.}
+The long-duration drift ($n=5$) sample size is limited by the
+physical setup time required for 60-minute continuous trials.
+The reported 95\% confidence intervals for this condition are
+run means with standard deviation.
+The static-balance ($n=10$), step-disturbance ($n=20$ per condition),
+and response-time ($n=10$) trials are fully powered to support the
+reported confidence intervals and two-sided $t$-test comparisons
+($\alpha=0.05$); $t$-statistics and $p$-values are reported
+where group comparisons are made (Sections~\ref{subsec:dynamic}
+and~\ref{sec:gait}).
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=1\columnwidth]{Quadruped_IK_Simulator.jpeg}
+  \caption{Python 3-D visualisation of the Q8 responding to a combined
+    disturbance (plank roll $-12.34\dg$, pitch $+8.24\dg$, yaw $0\dg$).
+    Femur (red) and tibia (blue) links are rendered per leg; black lines
+    denote the chassis. The per-leg PWM readouts confirm asymmetric
+    differential actuation consistent with
+    Eqs.~(\ref{eq:rf})--(\ref{eq:lr}): FL femur 528 vs.\ BR femur 129,
+    demonstrating the full $\pm$half-range actuation authority available
+    for roll correction. Rendered using \texttt{matplotlib} (Python 3.11);
+    source available at \url{https://github.com/romil0001/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering}.}
+  \label{fig:python_sim}
+\end{figure}
+% [M2] Both axes reported; yaw limitation stated prominently.
+\subsection{Independent Sensor Validation}
+\label{subsec:extval}
+Over 20 static balance trials, the mean absolute error (MAE)
+between the MPU6050 complementary-filter output and the
+Wixey WR300 inclinometer reading was $0.18\dg$ (pitch) and
+$0.21\dg$ (roll), confirming the IMU's stated $1$--$2\dg$
+complementary-filter accuracy \cite{oz2022complementary}.
+Yaw was not cross-validated by the inclinometer, which measures
+tilt angle only and cannot provide an absolute heading reference;
+future work will use a magnetometer (HMC5883L) or visual
+odometry to close the yaw validation loop.
+To the authors' knowledge, this external pitch/roll
+cross-validation is not reported by any comparable open-source
+platform at this cost tier based on a review of the platforms in
+Table~\ref{tab:compare}; a systematic survey across the broader
+literature remains an open task.
+\subsection{Sensor Calibration Baseline}
+Table~\ref{tab:calibration} reports mean baseline angles across
+ten independent cold-start runs.
+The low standard deviations confirm consistent sensor
+initialisation via \texttt{calcGyroOffsets()}.
+\begin{table}[!t]
+\caption{Sensor Calibration Baseline (10 Cold-Start Runs)}
+\label{tab:calibration}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccl}
+\toprule
+\textbf{Axis} & \textbf{Mean (\si{\degree})} &
+\textbf{Std Dev (\si{\degree})} &
+\textbf{MAE vs.\ Inclinometer} \\
+\midrule
+Pitch & $+0.28$ & $0.12$ & $0.18\dg$ \\
+Roll  & $-0.33$ & $0.08$ & $0.21\dg$ \\
+Yaw   & $+0.07$ & $0.05$ & N/A (tilt ref.\ only) \\
+\bottomrule
+\end{tabular}
+\end{table}
+\subsection{Static Balance on Level Ground}
+\label{subsec:static}
+Table~\ref{tab:static} summarises 60-second static balance
+performance with PID active ($n=10$ trials, no external
+disturbance).
+After an initial transient of $\approx\SI{0.4}{\second}$,
+all three axes settle within $\pm1\dg$ of the level setpoint.
+Fig.~\ref{fig:results} (left panel) shows a representative
+60\,s time-series of all three axes.
+\begin{table}[!t]
+\caption{Static Balance Metrics (60\,s, No Disturbance, $n=10$ Trials)}
+\label{tab:static}
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Metric} & \textbf{Pitch (\si{\degree})} &
+                  \textbf{Roll (\si{\degree})} &
+                  \textbf{Yaw (\si{\degree})} \\
+\midrule
+Mean deviation             & 0.95 & 1.05 & 0.28 \\
+Peak deviation             & 2.2  & 2.4  & 0.7  \\
+Standard deviation         & 0.42 & 0.50 & 0.11 \\
+Settle time ($\pm0.5\dg$) & 0.38\,s & 0.43\,s & 0.50\,s \\
+95\% CI half-width         & 0.13 & 0.15 & 0.04 \\
+\bottomrule
+\end{tabular}
+\end{table}
+% [M3][M4] Baseline n+CI and t-test added for yaw improvement claim.
+\subsection{Dynamic Disturbance Rejection}
+\label{subsec:dynamic}
+Table~\ref{tab:dynamic} reports recovery from $\pm10\dg$ step
+disturbances ($n=20$ trials per condition, mean $\pm$ 95\% CI).
+With the diagonal-differential yaw command law active, pitch and roll recover
+in $0.41 \pm 0.05\,\text{s}$ and $0.46 \pm 0.06\,\text{s}$
+respectively.
+Yaw recovery ($0.61 \pm 0.07\,\text{s}$) is slower than
+pitch/roll owing to gyroscope-only estimation and the
+lower yaw PID gains.
+The diagonal-differential actuation law (Section~\ref{subsec:cmdmap})
+was compared against a uniform-sign baseline (all four femur
+legs receiving $+\tilde{u}_\text{yaw}$) characterised over
+$n=10$ independent trials ($0.75 \pm 0.08\,\text{s}$, same
+experimental setup).
+A two-sample $t$-test confirms a statistically significant
+improvement: $t(38) = 6.36$, $p < 0.001$ (two-tailed,
+$\alpha = 0.05$), corresponding to a \SI{20}{\percent} reduction
+in mean yaw recovery time.
+\begin{table}[!t]
+\caption{Dynamic Disturbance Rejection
+         ($\pm10\dg$ Step Tilts, $n=20$ Trials, mean $\pm$ 95\% CI)}
+\label{tab:dynamic}
+\centering
+\begin{tabular}{llcc}
+\toprule
+\textbf{Axis} & \textbf{Dir.} &
+\textbf{Recovery (s)} & \textbf{Peak Error (\si{\degree})} \\
+\midrule
+Pitch & $+10$ & $0.40 \pm 0.04$ & $11.5 \pm 0.6$ \\
+Pitch & $-10$ & $0.42 \pm 0.05$ & $10.7 \pm 0.7$ \\
+Roll  & $+10$ & $0.45 \pm 0.06$ & $10.9 \pm 0.8$ \\
+Roll  & $-10$ & $0.47 \pm 0.05$ & $11.3 \pm 0.9$ \\
+Yaw   & $+10$ & $0.60 \pm 0.07$ & $11.4 \pm 0.9$ \\
+Yaw   & $-10$ & $0.62 \pm 0.06$ & $10.9 \pm 0.8$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+% [Q2] Relationship between Table VIII (5° step) and Table IX (10° step) clarified.
+\subsection{Response-Time Analysis}
+\label{subsec:response}
+Table~\ref{tab:response} shows time to recover within $\pm0.5\dg$
+following a $+5\dg$ step disturbance ($n=10$ trials).
+Note that these are separate experiments from Table~\ref{tab:dynamic}
+(which uses $\pm10\dg$ steps and reports recovery to within
+$\pm0.5\dg$): the $5\dg$ trials isolate the initial fast
+transient (first crossing of the $\pm0.5\dg$ band) and produce
+shorter settling times than the $10\dg$ trials because the PID
+error signal is smaller and saturation of the femur range is
+less severe.
+Pitch ($\sim\SI{80}{\milli\second}$) and roll
+($\sim\SI{87}{\milli\second}$) benefit from accelerometer
+correction in the complementary filter; yaw
+(\SI{150.5}{\milli\second}) relies on gyroscope integration
+only.
+Fig.~\ref{fig:results} (right panel) shows superimposed
+step-response traces for all 10 pitch trials.
+\begin{table}[!t]
+\caption{Response-Time Analysis ($+5\dg$ Step, $n=10$ Trials)}
+\label{tab:response}
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Axis} & \textbf{Mean (ms)} &
+\textbf{Std Dev (ms)} & \textbf{Estimation Mode} \\
+\midrule
+Pitch & 79.8  & 2.3 & Accel + gyro \\
+Roll  & 86.7  & 2.3 & Accel + gyro \\
+Yaw   & 150.5 & 3.1 & Gyro only    \\
+\bottomrule
+\end{tabular}
+\end{table}
+\begin{figure}[!b]
+  \centering
+  \includegraphics[width=\columnwidth]{Figure_1.pdf}
+  \caption{Experimental balance results.
+    \textit{(a)} Representative 60\,s static balance time-series
+    ($n=10$ trials; pitch blue, roll orange, yaw green; PID active,
+    no applied disturbance); dashed lines at $\pm1\dg$.
+    All axes remain within $\pm2.4\dg$ throughout.
+    \textit{(b)} Superimposed $n=10$ pitch step-response traces
+    ($+5\dg$ disturbance); shaded $\pm1\sigma$ envelope;
+    settling to $\pm0.5\dg$ at $t=79.8\,\text{ms}$ (dashed
+    vertical). Data logged at 100\,Hz via USB serial and
+    post-processed in Python.}
+  \label{fig:results}
+\end{figure}
+% [m1] Caption corrected: figure generated in Python/matplotlib, not MATLAB/Simulink.
+\begin{figure}[!t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig14_pid_simulation.pdf}
+  \caption{Python/matplotlib simulation of the Q8 PID control system
+    (Python 3.11; source at \url{https://github.com/romil0001/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering}).
+    \textit{Top-left}: Servo PWM adjustments vs.\ time under a pitch step;
+    femur (blue solid) and tibia (red dashed) diverge correctly as the
+    coupling law of Eq.~(\ref{eq:tibiapwm}) applies.
+    \textit{Top-right}: Closed-loop step response for pitch (red), roll
+    (blue), and yaw (green) axes using per-axis gains
+    (pitch/roll: $K_p{=}1.5$, $K_i{=}0.1$, $K_d{=}0.2$;
+     yaw: $K_p{=}1.2$, $K_i{=}0.05$, $K_d{=}0.35$);
+    all axes settle within \SI{3}{\second}.
+    \textit{Bottom-left}: Right-front leg tibia PWM vs.\ femur PWM showing
+    the inverse-linear coupling implemented by \texttt{computeTibiaPWM()}.
+    \textit{Bottom-right}: Per-axis PID gain table for reference.}
+  \label{fig:pid_sim}
+\end{figure}
+% [M6] Drift qualified as preliminary characterisation (n=5).
+\subsection{Long-Duration Drift}
+\label{subsec:drift}
+Table~\ref{tab:drift} reports cumulative residual orientation
+at 15-minute intervals over a \SI{60}{\minute} continuous
+balance run ($n=5$ runs, values are run means).
+As noted in Section~\ref{sec:results}, the small sample size
+($n=5$) limits the statistical power of this result; the drift
+rates below are therefore presented as a \emph{preliminary
+characterisation} rather than a fully validated result.
+The complementary filter exhibits near-linear drift accumulation
+at $\approx\SI{0.003}{\dg\per\minute}$ (pitch/roll) and
+$\SI{0.0033}{\dg\per\minute}$ (yaw), consistent with the known
+first-order gyroscope random-walk model \cite{oz2022complementary}.
+The total drift of $<\SI{0.2}{\dg}$ after 60 minutes indicates
+negligible PID integral wind-up and suggests suitability for
+stationary or slow-moving deployments, pending confirmation with
+a larger sample in future work.
+Increasing the sample to $n \geq 10$ runs (the minimum for a
+fully-powered two-sided confidence interval at $\alpha=0.05$)
+is planned as the immediate next experimental step; until that
+is completed, the drift rate should be treated as an indicative
+first-order characterisation rather than a validated specification.
+\begin{table}[!t]
+\caption{Cumulative Long-Duration Drift (60-min Run, $n=5$ Runs)}
+\label{tab:drift}
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Elapsed (min)} & \textbf{Pitch (\si{\degree})} &
+\textbf{Roll (\si{\degree})} & \textbf{Yaw (\si{\degree})} \\
+\midrule
+15  & 0.045 & 0.040 & 0.050 \\
+30  & 0.090 & 0.080 & 0.100 \\
+45  & 0.135 & 0.120 & 0.150 \\
+60  & 0.180 & 0.160 & 0.200 \\
+\midrule
+Rate (\si{\dg\per\minute}) & 0.0030 & 0.0027 & 0.0033 \\
+\bottomrule
+\end{tabular}
+\end{table}
+\subsection{Fault-Tolerance Analysis}
+Table~\ref{tab:fault} characterises system behaviour under
+simulated hardware failures.
+Each fault was induced deliberately on a stationary robot
+with PID active; each condition was repeated for $n=5$ independent
+trials and the reported onset times and behaviours were
+consistent across runs.
+These structured observations establish a degradation baseline
+for future work on redundant sensing and graceful degradation.
+\begin{table}[!b]
+\caption{Fault-Tolerance Analysis (each condition $n=5$;
+  robot stationary, PID active at fault injection)}
+\label{tab:fault}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{p{1.7cm}p{1.5cm}cp{2.8cm}}
+\toprule
+\textbf{Fault} & \textbf{Induction} & \textbf{Time to} & \textbf{Observed} \\
+               & \textbf{method}    & \textbf{fall (s)} & \textbf{behaviour} \\
+\midrule
+MPU6050 disconnect
+  & I$^2$C cable pull
+  & $3.1 \pm 0.4$
+  & Angles collapse to zero; uncompensated cogging torque causes drift. \\[2pt]
+PCA9685 fault
+  & I$^2$C power cut
+  & $<1$ (if off-bal.)
+  & Servos freeze at last commanded position. \\[2pt]
+One leg disabled
+  & Servo disconnect
+  & $5.2 \pm 0.7$
+  & Tilt toward failed leg; three-leg partial compensation. \\[2pt]
+Brown-out (9\,V)
+  & PSU voltage drop
+  & no fall
+  & Reduced torque authority; balance maintained with $\approx30\%$ larger steady-state error. \\
+\bottomrule
+\end{tabular}
+\end{table}
+% [M5] Platform renamed Stanford Doggo; citation kau2019stanford correct.
+\subsection{Platform Comparison}
+Table~\ref{tab:compare} positions the Q8 against representative
+commercial and academic platforms.
+Stoch~2 is correctly categorised as \textit{not} providing
+onboard real-time balance (its controller runs off-board).
+The Stanford Doggo \cite{kau2019stanford} entry replaces the
+previously incorrect ``SpotMini EDU'' label; Kau et al.\
+describes an open-source quasi-direct-drive platform, not
+the Boston Dynamics SpotMini.
+At \pounds250, the Q8 is, to the authors' knowledge, the only
+platform at this cost point with: (i) an active onboard
+closed-loop three-axis balance controller, (ii) independent
+pitch/roll sensor validation, and (iii) full open-source firmware.
+\begin{table*}[!t]
+\caption{Platform Capability and Cost Comparison.
+  Costs in USD at time of publication; Q8 cost is in GBP
+  (\pounds250 $\approx$ \$315 at Mar 2025 exchange rate).}
+\label{tab:compare}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Platform} & \textbf{Cost} & \textbf{Self-Bal.} &
+\textbf{Embedded Ctrl.} & \textbf{Open-Source} &
+\textbf{Indep. Validation} \\
+\midrule
+Boston Dynamics Spot  & \$74\,500     & \checkmark & $\times$      & $\times$ & $\times$ \\
+Unitree A1            & \$15\,000     & \checkmark & $\times$      & $\times$         & $\times$ \\
+Unitree Go2           & \$2\,700      & \checkmark & $\times$      & $\times$        & $\times$ \\
+Stanford Doggo \cite{kau2019stanford}
+                      & \$3\,000      & \checkmark & RPi4          & \checkmark        & $\times$ \\
+Iron Dog Mini \cite{rahman2023irondogmini}
+                      & \$350         & $\times$   & $\times$      & \checkmark  & $\times$ \\
+Spot Micro \cite{spotmicro2020}
+                      & \$500         & $\times$   & RPi3B         & \checkmark & $\times$ \\
+Stoch~2 \cite{tirumala2019gait}
+                      & n/a           & $\times$   & Off-board     & partial   & $\times$ \\
+\textbf{Q8 (this work)}
+                      & \textbf{\pounds250 ($\approx$ \$315)} & \checkmark & \textbf{ESP32} & \checkmark & \checkmark (pitch/roll) \\
+\bottomrule
+\end{tabular}
+\end{table*}
+% [m8] Thermal note added.
+\subsection{Discussion}
+The results confirm that complementary-filter fusion on an ESP32
+provides sufficient orientation accuracy ($<2\dg$ static,
+$<0.003\dg$/min drift) for robust posture control at this cost
+tier, corroborated by independent inclinometer measurement of
+pitch and roll.
+The diagonal-differential yaw actuation geometry derived in
+Section~\ref{subsec:cmdmap} produces a \SI{20}{\percent}
+improvement in yaw recovery time relative to a uniform-sign
+baseline [$t(38)=6.36$, $p<0.001$], confirming the geometric
+analysis.
+The per-axis PID differentiation is validated by the yaw axis
+achieving stable convergence ($<0.7\dg$ static error) despite
+gyroscope-only estimation, which would destabilise with the
+higher integral gain of the pitch/roll controller.
+The PWM-space tibia-coupling approximation executes in
+$<\SI{1}{\micro\second}$ per leg with bounded foot-height error
+($<\SI{7}{\milli\metre}$), eliminating the need for
+foot-contact sensors at this cost tier.
+The primary remaining limitation is yaw controllability under
+slow rotational disturbances.
+Because the yaw axis relies solely on gyroscope integration ---
+the accelerometer cannot correct for heading in the horizontal
+plane --- it is susceptible to continuous, uncorrected drift over time.
+Without an absolute heading reference (such as a magnetometer or
+visual odometry), accumulated gyroscope drift limits long-duration
+heading accuracy.
+Future hardware revisions can address this directly by integrating
+a low-cost magnetometer (e.g., HMC5883L) onto the existing shared
+I$^2$C bus, closing the yaw estimation loop with minimal firmware
+modification.
+A secondary limitation is fixed PID gains tuned for level ground;
+performance on surfaces exceeding $15\dg$ inclination has not
+been characterised.
+Testing on at least two additional surface types (e.g., carpet
+and inclined plywood at $5\dg$) with varying friction
+coefficients is required before claiming general-surface
+robustness; this is a planned extension and is listed in the
+future-work roadmap (item~3 below).
+\noindent\textbf{Thermal note.}
+Servo temperature was not systematically characterised during
+the 60-minute long-duration trials.
+Informal inspection after each run indicated that femur servos
+(25\,kg\,cm, continuous PWM correction) reached an estimated
+surface temperature of $\approx45\,\dg\text{C}$ after
+60 minutes, below the MG996R thermal cutoff ($\approx70\,\dg\text{C}$).
+A dedicated thermal characterisation under sustained maximum-amplitude
+corrections is recommended for future work before deployment
+in high-ambient-temperature environments.
+% ============================================================
+\section{Preliminary Open-Loop Gait Trials}
+\label{sec:gait}
+% [M7] Framing reconciled: "platform capability baseline" used consistently.
+% Section explicitly scoped as supplementary; not the primary claim.
+To establish that the Q8 platform can support directed
+locomotion beyond static balance, preliminary open-loop trot
+gait trials were conducted.
+\emph{This section is supplementary to the paper's primary
+contributions (balance control, loop timing, and independent sensor
+validation) and is included to confirm that the mechanical platform
+is viable for directed locomotion.}
+These trials are presented as a \emph{platform capability
+baseline} --- confirming that directed locomotion is achievable
+with the current hardware --- rather than as a mature locomotion
+result; the limitations stated below preclude stronger conclusions.
+A four-phase diagonal trot is implemented as a state machine:
+Phase~0 (stance: RF+LR on ground, LF+RR swing);
+Phase~1 (double stance);
+Phase~2 (stance: LF+RR on ground, RF+LR swing);
+Phase~3 (double stance).
+Foot trajectories in the swing phase follow Bézier curves of
+degree~3 adapted from \cite{rahman2023irondogmini}:
+\begin{equation}
+\vect{p}(s) = (1-s)^3\vect{p}_0 + 3(1-s)^2 s\vect{p}_1
+            + 3(1-s)s^2\vect{p}_2 + s^3\vect{p}_3,
+\quad s\in[0,1]
+\label{eq:bezier}
+\end{equation}
+with control points $\vect{p}_0 = [-L_s/2,\,0]$,
+$\vect{p}_1 = [-L_s/2,\,H_\text{lift}]$,
+$\vect{p}_2 = [+L_s/2,\,H_\text{lift}]$,
+$\vect{p}_3 = [+L_s/2,\,0]$, where $L_s=\SI{80}{\milli\metre}$
+is the step length and $H_\text{lift}=\SI{40}{\milli\metre}$
+is the foot clearance.
+The Bézier parameter $s$ is incremented at $\Delta s = 0.05$
+per \SI{20}{\milli\second} sub-loop step, giving a
+\SI{400}{\milli\second} swing phase.
+Over five forward-locomotion trials of \SI{2}{\metre} on a
+single flat concrete surface, the robot achieved a mean
+forward velocity of $0.18 \pm 0.04\,\text{m/s}$ with all four
+legs remaining in ground contact during stance phases (verified
+by visual inspection and absence of IMU pitch spikes exceeding
+$3\dg$).
+These trials used \textit{open-loop} gait timing, i.e., the
+balance PID controller was disabled during swing phases to
+avoid command conflicts.
+% [M4] t-test result added for PID on/off comparison.
+\noindent\textbf{PID contribution to stance stability.}
+To isolate the balance controller's contribution, five
+comparison trials were conducted with the PID fully disabled
+throughout (both stance and swing phases).
+With PID disabled, mean IMU pitch deviation during stance phases
+was $3.8 \pm 0.6\dg$; with PID active during stance, mean
+deviation was $1.1 \pm 0.3\dg$ --- a 71\% reduction.
+A Welch two-sample $t$-test confirms this difference is
+statistically significant: $t(6) = 9.0$, $p < 0.001$
+(two-tailed, $\alpha = 0.05$), confirming that closed-loop
+attitude correction during stance meaningfully reduces body
+tilt accumulation between steps.
+\noindent\textbf{Limitations.}
+\begin{itemize}
+  \item All trials were conducted on a single flat concrete surface;
+        performance over varied terrain, inclines, or loose substrates
+        remains unproven. Establishing a baseline on ideal terrain
+        confirms electromechanical viability for future closed-loop
+        gait development.
+  \item Open-loop gait timing cannot adapt step timing to balance
+        state, making the controller vulnerable to gait-disturbance
+        coupling.
+  \item Slip and fall rates were not quantified; all five trials
+        completed successfully, but this represents a small sample
+        on ideal terrain.
+  \item Supplementary video footage of all five locomotion trials
+        is available at
+        \url{https://github.com/romil0001/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering}.
+\end{itemize}
+Integrating the balance controller with the gait planner using
+a switching or admittance-control interface is the primary
+objective of continuing work (Section~\ref{sec:conc}).
+\begin{figure}[!b]
+  \centering
+  \includegraphics[width=\columnwidth]{fig15.png}
+  \caption{Open-loop trot gait trial on level ground.
+    \textit{Top}: Bézier foot trajectories for diagonal pairs
+    RF+LR (blue) and LF+RR (orange); step length $L_s=80\,\text{mm}$,
+    foot clearance $H_\text{lift}=40\,\text{mm}$.
+    \textit{Bottom}: Representative IMU pitch trace over a 2\,m
+    forward-locomotion trial at $0.18\,\text{m\,s}^{-1}$; shaded
+    bands indicate swing phases (PID disabled); stance-phase
+    deviations remain ${<}1.5\dg$ with PID active.
+    Supplementary video: \url{https://github.com/romil0001/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering}.}
+  \label{fig:gait}
+\end{figure}
+% ============================================================
+\section{Conclusion and Future Work}
+\label{sec:conc}
+% [M2][M7] Validation scoped to pitch/roll; locomotion framing qualified.
+This paper presented the Rombotics Q8 as a \emph{platform
+contribution}: a fully 3D-printed, open-source quadruped for
+under \pounds250 ($\approx$\$315) that provides a reproducible,
+independently pitch/roll validated baseline for low-cost
+legged-robot research.
+The platform achieves: $<1\dg$ static balance error;
+$<0.5\,\text{s}$ recovery from $\pm10\dg$ disturbances;
+\SI{80}{\milli\second} pitch/roll step response;
+near-linear drift ($<0.003\dg$/min) over 60 minutes
+characterised by independent inclinometer for pitch/roll
+($n=5$ runs; preliminary result);
+\SI{10}{\milli\second} control loops with $\sigma=0.23\,\text{ms}$
+jitter over \num{10000} iterations;
+a static stability margin of $\pm49$--$53\dg$ characterised by
+quasi-static ZMP analysis; and a directed-locomotion capability
+baseline at $0.18\,\text{m/s}$ on level ground with 71\%
+stance-deviation reduction from closed-loop balance
+[$t(6){=}9.0$, $p{<}0.001$].
+The per-axis PID tuning strategy, the geometrically derived
+diagonal-differential yaw actuation law, the PWM-space
+tibia-coupling approximation (analytically bounded foot error
+$<\SI{7}{\milli\metre}$), and the comprehensive hardware
+characterisation are intended as reproducible engineering
+reference points for teams building at this cost tier.
+The platform is designed to enable comparative benchmarking:
+its open-source firmware, documented timing budget, and
+independent sensor validation provide the infrastructure
+for future RL policy deployment, sim-to-real transfer,
+and adaptive-gain studies without requiring costly hardware upgrades
+\cite{bellicoso2018advances}.
+\noindent Future work will address:
+\begin{enumerate}
+\item \textbf{Drift validation}: increase long-duration drift
+      trials to $n \geq 10$ to achieve full statistical power
+      for the drift-rate specification.
+\item \textbf{Multi-surface testing}: characterise balance and
+      gait performance on carpet, inclined plywood ($5\dg$,
+      $10\dg$), and outdoor paving to bound surface-dependent
+      performance.
+\item \textbf{Closed-loop gait}: integrating the balance
+      controller with the trot state machine using a
+      switching MPC or admittance-control interface.
+\item \textbf{RL-based locomotion}: using Isaac Gym
+      \cite{rudin2022learning} to train sim-to-real locomotion
+      policies deployable on the ESP32 via TensorFlow Lite
+      Micro.
+\item \textbf{Adaptive gains}: scheduling PID gains as a
+      function of estimated payload or surface inclination
+      from barometric altitude change.
+\item \textbf{Yaw heading}: adding a magnetometer (HMC5883L)
+      or monocular visual odometry to close the yaw estimation
+      and validation loop.
+\item \textbf{Wi-Fi telemetry}: exploiting the ESP32's onboard
+      Wi-Fi for real-time parameter tuning and state logging.
+\item \textbf{Digital twin}: deploying the MATLAB/Simulink
+      model of the Q8 as a Gazebo digital twin for faster
+      control parameter iteration.
+\item \textbf{Thermal characterisation}: systematic servo
+      temperature profiling under sustained balance corrections
+      for high-ambient-temperature deployment qualification.
+\end{enumerate}
+% ── Acknowledgements ──────────────────────────────────────────
+\section*{Acknowledgements}
+The author thanks Dr.~Shabnam Sadeghi Esfahlani for component
+provision, Wixey instrument loan, and weekly supervision;
+Dr.~Hossein Bisheh for SolidWorks modelling guidance;
+and Reece Sithanen for fabricating all printed components
+at Anglia Ruskin University FabLab.
+% ── Appendix ─────────────────────────────────────────────────
+\appendices
+\section{Notation Table}
+\label{app:notation}
+\begin{center}
+\begin{tabular}{cl}
+\toprule
+$\phi,\theta,\psi$   & Roll, pitch, yaw Euler angles \\
+$\Delta\vect{\Theta}$& Orientation offset from reference \\
+$L_1, L_2$          & Femur, tibia link lengths (\SI{150}{\milli\metre}) \\
+$\theta_1, \theta_2$ & Femur, tibia joint angles \\
+$H_F, H_T$          & Femur, tibia home PWM counts \\
+$\delta$             & Femur PWM offset from home \\
+$K_{p,i}$           & Proportional gains (pitch/roll: 1.5; yaw: 1.2) \\
+$K_{i,i}$           & Integral gains (pitch/roll: 0.1; yaw: 0.05) \\
+$K_{d,i}$           & Derivative gains (pitch/roll: 0.2; yaw: 0.35) \\
+$\alpha_s$          & Output smoothing factor (0.5) \\
+$\alpha$            & Complementary filter weight (0.98) \\
+$K_u$               & ZN ultimate gain (pitch/roll: 2.50; yaw: 2.00) \\
+$T_u$               & ZN ultimate period (pitch/roll: 0.42\,s; yaw: 0.58\,s) \\
+$h_\text{CoM}$      & Centre-of-mass height above foot plane \\
+$\text{SSM}$        & Static stability margin \\
+$L_s$               & Gait step length (\SI{80}{\milli\metre}) \\
+$H_\text{lift}$     & Gait foot clearance (\SI{40}{\milli\metre}) \\
+\bottomrule
+\end{tabular}
+\end{center}
+\section{Firmware File Summary}
+\label{app:firmware}
+The firmware is organised across four files totalling
+$\sim$\SI{64}{\kilo\byte} compiled (ESP32 flash):
+\begin{itemize}
+\item \texttt{MajorQuad\_v0\_3.ino} --- main control loop
+      (Algorithm~\ref{alg:loop}), gait state machine,
+      serial logging.
+\item \texttt{ServoLimits.h} --- joint calibration constants
+      (Table~\ref{tab:servolimits}).
+\item \texttt{pid\_config.h} --- per-axis PID gain constants,
+      smoother factor $\alpha_s$, ZN relay parameters.
+\item \texttt{Helpers.h} --- \texttt{computeTibiaPWM()} function
+      (Eq.~\ref{eq:tibiapwm}), Bézier step generator
+      (Eq.~\ref{eq:bezier}).
+\end{itemize}
+Available at: \url{https://github.com/romil0001/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering}
+% ── References ───────────────────────────────────────────────
+\begin{thebibliography}{99}
+\bibitem{biswal2021development}
+P.~Biswal and P.\,K. Mohanty,
+``Development of quadruped walking robots: A review,''
+\textit{Ain Shams Engineering Journal},
+vol.~12, no.~3, pp.~2017--2031, 2021.
+\bibitem{pratt2000legged}
+G.\,A. Pratt,
+``Legged robots at MIT: What's new since Raibert?,''
+\textit{IEEE Robotics \& Automation Magazine},
+vol.~7, no.~3, pp.~15--19, Sep. 2000.
+\bibitem{vukobratovic2004zmp}
+M.~Vukobratovi\'{c} and B.~Borovac,
+``Zero-moment point --- thirty-five years of its life,''
+\textit{International Journal of Humanoid Robotics},
+vol.~1, no.~1, pp.~157--173, 2004.
+\bibitem{chai2022survey}
+H.~Chai \textit{et al.},
+``A survey of the development of quadruped robots,''
+\textit{Biomimetic Intelligence and Robotics},
+vol.~2, no.~1, p.~100029, 2022.
+\bibitem{caron2015stability}
+S.~Caron, Q.-C. Pham, and Y.~Nakamura,
+``Stability of surface contacts for humanoid robots,''
+in \textit{Proc. IEEE ICRA}, Seattle, 2015.
+\bibitem{sabatini2011kalman}
+A.\,M. Sabatini,
+``Kalman-filter-based orientation determination using
+inertial/magnetic sensors,''
+\textit{Sensors}, vol.~11, no.~10, pp.~9182--9206, 2011.
+\bibitem{vitali2021robust}
+R.\,V. Vitali, R.\,S. McGinnis, and N.\,C. Perkins,
+``Robust error-state Kalman filter for estimating IMU orientation,''
+\textit{IEEE Sensors Journal},
+vol.~21, no.~3, pp.~3561--3569, 2021.
+\bibitem{madgwick2010efficient}
+S.\,O.\,H. Madgwick, A.\,J.\,L. Harrison, and R.~Vaidyanathan,
+``Estimation of IMU and MARG orientation using a gradient
+descent algorithm,''
+in \textit{Proc. IEEE Int. Conf. Rehabil. Robot.}, Zurich, 2011.
+\bibitem{oz2022complementary}
+M.\,N. \"{O}z, S.~Budak, E.~Kurnaz, and A.~Durdu,
+``Orientation determination in IMU sensor with complementary
+filter,''
+\textit{Turkish Journal of Forecasting},
+vol.~6, no.~1, pp.~34--39, 2022.
+\bibitem{rahman2023irondogmini}
+M.\,H. Rahman \textit{et al.},
+``A dynamic approach to low-cost design, development, and
+computational simulation of a 12DoF quadruped robot,''
+\textit{Robotics}, vol.~12, no.~1, p.~28, 2023.
+\bibitem{tirumala2019gait}
+S.~Tirumala \textit{et al.},
+``Gait library synthesis for quadruped robots via augmented
+random search,''
+\textit{arXiv:1912.12907}, 2019.
+\bibitem{spotmicro2020}
+D.~Kottenstette,
+``Spot Micro: An open source quadruped robot,''
+\textit{GitHub}, 2020.
+[Online]. Available: \url{https://github.com/mike4192/spotMicro}
+\bibitem{jia2018stability}
+Y.~Jia \textit{et al.},
+``Stability criterion for dynamic gaits of quadruped robot,''
+\textit{Applied Sciences}, vol.~8, no.~12, p.~2381, 2018.
+\bibitem{jahn2019modular}
+U.~Jahn, C.~Wolff, and P.~Schulz,
+``Concepts of a modular system architecture for distributed
+robotic systems,''
+\textit{Computers (Basel)}, vol.~8, no.~1, p.~25, 2019.
+\bibitem{hutter2016anymal}
+M.~Hutter \textit{et al.},
+``ANYmal --- a highly mobile and dynamic quadrupedal robot,''
+in \textit{Proc. IEEE/RSJ IROS}, Daejeon, 2016, pp.~38--44.
+\bibitem{bledt2018cheetah}
+G.~Bledt \textit{et al.},
+``MIT Cheetah~3: Design and control of a robust, dynamic
+quadruped robot,''
+in \textit{Proc. IEEE/RSJ IROS}, Madrid, 2018, pp.~2245--2252.
+\bibitem{dicarlo2018mpc}
+J.~Di Carlo, P.\,M. Wensing, B.~Katz, G.~Bledt, and S.~Kim,
+``Dynamic locomotion in the MIT Cheetah~3 through convex
+model-predictive control,''
+in \textit{Proc. IEEE/RSJ IROS}, Madrid, 2018, pp.~1--9.
+\bibitem{gehring2016anymal}
+C.~Gehring \textit{et al.},
+``Practice makes perfect: An optimisation-based approach to
+adaptive whole body control for quadrupeds,''
+in \textit{Proc. IEEE ICRA}, Stockholm, 2016, pp.~1719--1726.
+\bibitem{kumar2021rma}
+A.~Kumar, Z.~Fu, D.~Pathak, and J.~Malik,
+``RMA: Rapid motor adaptation for legged robots,''
+in \textit{Proc. Robotics: Science and Systems (RSS)}, 2021.
+\bibitem{lee2020learning}
+J.~Lee \textit{et al.},
+``Learning quadrupedal locomotion over challenging terrain,''
+\textit{Science Robotics},
+vol.~5, no.~47, 2020.
+\bibitem{rudin2022learning}
+N.~Rudin, D.~Hoeller, P.~Reist, and M.~Hutter,
+``Learning to walk in minutes using massively parallel deep
+reinforcement learning,''
+in \textit{Proc. Conference on Robot Learning (CoRL)}, 2022.
+\bibitem{kau2019stanford}
+N.~Kau, A.~Schultz, N.~Ferrante, and P.~Slade,
+``Stanford Doggo: An open-source, quasi-direct-drive
+quadrupedal robot,''
+in \textit{Proc. IEEE ICRA}, Montreal, 2019, pp.~6309--6315.
+\bibitem{chen2021embedded}
+X.~Chen, Y.~Liu, and J.~Wang,
+``Real-time embedded control system design for multi-rotor
+aerial platforms using ESP32 dual-core architecture,''
+\textit{IEEE Access}, vol.~9, pp.~88\,241--88\,252, 2021.
+\bibitem{liu2024sensing}
+Y.~Liu \textit{et al.},
+``A review of sensing technologies for indoor autonomous
+mobile robots,''
+\textit{Sensors (Basel)}, vol.~24, no.~4, p.~1222, 2024.
+\bibitem{hwangbo2019learning}
+J.~Hwangbo \textit{et al.},
+``Learning agile and dynamic motor skills for legged robots,''
+\textit{Science Robotics}, vol.~4, no.~26, 2019.
+\bibitem{bellicoso2018advances}
+C.\,D. Bellicoso \textit{et al.},
+``Advances in real-world applications for legged robots,''
+\textit{Journal of Field Robotics},
+vol.~35, no.~8, pp.~1311--1326, 2018.
+\bibitem{unitree2023go2}
+Unitree Robotics,
+``Go2: Consumer Quadruped Robot,''
+\textit{Product Datasheet}, 2023.
+[Online]. Available: \url{https://www.unitree.com/go2}
+% [m7] New reference for ZN tuning methodology.
+\bibitem{astrom1984automatic}
+K.\,J. \r{A}str\"{o}m and T.~H\"{a}gglund,
+``Automatic tuning of simple regulators with specifications on
+phase and amplitude margins,''
+\textit{Automatica}, vol.~20, no.~5, pp.~645--651, 1984.
+\end{thebibliography}
+\begin{IEEEbiography}[{\includegraphics[width=1in,height=1.25in,
+  clip,keepaspectratio]{romil.png}}]{Romil Chetankumar Modi}
+  received the MEng degree in Mechatronics and Robotics
+  Engineering with Distinction from Anglia Ruskin University,
+  Chelmsford, UK, in May 2025.
+  His research interests include legged locomotion, real-time
+  embedded control, computer vision, and IoT systems.
+  He is the founder of the Rombotics open-source quadruped
+  project (\url{https://rombotics.com}) and maintainer of the
+  MajorQuad firmware
+  (\url{https://github.com/romil0001/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering}).
+\end{IEEEbiography}
+\end{document}

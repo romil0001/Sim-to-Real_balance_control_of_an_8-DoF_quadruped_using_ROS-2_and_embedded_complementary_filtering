@@ -1,24 +1,50 @@
 cff-version: 1.2.0
-message: "If you use this software in academic work, please cite it as below."
-title: "Rombotics Q8: IMU-Based Static Stabilization for a Low-Cost Quadruped"
+message: "If you use this work, please cite the preprint (preferred) or the software."
+title: "Rombotics Q8 firmware: IMU-based static stabilization for a low-cost 8-DoF quadruped"
 version: 1.0.0
-date-released: 2026-08-25
-url: "https://github.com/romil0001/Q8_Quadruped_IMU_Stabilization"
-repository-code: "https://github.com/romil0001/Q8_Quadruped_IMU_Stabilization"
+date-released: 2025-10-23
+url: "https://github.com/romil0001/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering"
+repository-code: "https://github.com/romil0001/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering"
 license: MIT
 type: software
 keywords:
   - quadruped robot
   - IMU stabilization
+  - complementary filter
   - PID control
   - MPU6050
+  - ESP32
+  - ROS 2
+  - sim-to-real
   - legged robotics
   - open source
 authors:
-  - family-names: romil0001
-    affiliation: "Update with your university / lab name"
-    orcid: "https://orcid.org/0000-0000-0000-0000"
+  - family-names: Modi
+    given-names: Romil Chetankumar
+    affiliation: "Anglia Ruskin University, School of Engineering and the Built Environment"
+    email: romil2002modi@gmail.com
 abstract: >
-  Open-source firmware and documentation for static pose stabilization of an
-  eight-degree-of-freedom quadruped robot using MPU6050 inertial sensing and
-  decoupled three-axis PID control with femur-tibia joint mirroring.
+  Open-source firmware and documentation for the Rombotics Q8, an eight-DoF
+  quadruped that recovers static pose using an MPU6050 complementary filter
+  and per-axis PID balance on an ESP32.
+preferred-citation:
+  type: article
+  authors:
+    - family-names: Modi
+      given-names: Romil Chetankumar
+      affiliation: "Anglia Ruskin University, School of Engineering and the Built Environment"
+      email: romil2002modi@gmail.com
+  title: "Sim-to-real balance control of an 8-DoF quadruped using ROS 2 and embedded complementary filtering"
+  year: 2025
+  month: 10
+  notes: "Preprint. Deposit on Figshare as item type Preprint for Google Scholar indexing; replace url with the Figshare DOI after publishing."
+  url: "https://romil0001.github.io/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering/paper/"
+  keywords:
+    - quadruped robot
+    - self-balancing
+    - PID control
+    - complementary filter
+    - ESP32
+    - MPU6050
+    - ROS 2
+    - sim-to-real

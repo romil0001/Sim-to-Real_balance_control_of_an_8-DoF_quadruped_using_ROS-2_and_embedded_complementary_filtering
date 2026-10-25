@@ -1,6 +1,6 @@
 # Research Overview
 
-**Repository:** [Q8_Quadruped_IMU_Stabilization](https://github.com/romil0001/Q8_Quadruped_IMU_Stabilization)  
+**Repository:** [Sim-to-Real balance control…](https://github.com/romil0001/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering)  
 **Platform:** Rombotics Q8 — low-cost 8-DOF quadruped testbed  
 **Primary contribution:** Open, reproducible firmware for IMU-driven static pose stabilization on a four-legged servo platform
 
@@ -171,15 +171,15 @@ Enable CSV serial logging in `BalancePID/pid_config.h` (`RESEARCH_LOG 1`) to cap
 
 ## Citation
 
-If you use this repository in academic work, cite it using [CITATION.cff](../CITATION.cff) or:
+Prefer the preprint (same title/author/year as the PDF) so Google Scholar can cluster versions. See [CITATION.cff](../CITATION.cff).
 
 ```bibtex
-@software{q8_quadruped_imu_stabilization_2026,
-  author    = {romil0001},
-  title     = {Rombotics Q8: IMU-Based Static Stabilization for a Low-Cost Quadruped},
-  year      = {2026},
-  url       = {https://github.com/romil0001/Q8_Quadruped_IMU_Stabilization},
-  version   = {1.0.0}
+@unpublished{modi2025simtoreal,
+  author = {Modi, Romil Chetankumar},
+  title  = {Sim-to-real balance control of an 8-DoF quadruped using {ROS} 2 and embedded complementary filtering},
+  year   = {2025},
+  note   = {Preprint},
+  url    = {https://romil0001.github.io/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering/paper/}
 }
 ```
 

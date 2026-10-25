@@ -2,7 +2,7 @@
 
 **IMU-based static stabilization for a low-cost 8-DOF quadruped robot**
 
-**Repository:** https://github.com/romil0001/Q8_Quadruped_IMU_Stabilization
+**Repository:** https://github.com/romil0001/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Research Docs](https://img.shields.io/badge/docs-research-green.svg)](docs/RESEARCH.md)
@@ -81,7 +81,7 @@ Full protocol: [docs/REPRODUCIBILITY.md](docs/REPRODUCIBILITY.md)
 ## Repository Structure
 
 ```
-Q8_Quadruped_IMU_Stabilization/
+Sim-to-Real_balance_control_.../
 ├── BalancePID/              Primary stabilization controller (research artifact)
 ├── Calibrate/               Joint calibration CLI
 ├── docs/
@@ -89,8 +89,9 @@ Q8_Quadruped_IMU_Stabilization/
 │   ├── METHODOLOGY.md       Control formulation and protocols
 │   ├── EXPERIMENTS.md       Experimental phases 0–6
 │   ├── REPRODUCIBILITY.md   Replication guide
+│   ├── paper/               Preprint HTML + PDF (Google Scholar–oriented)
 │   └── REFERENCES.md        Bibliography
-├── CITATION.cff             Academic citation metadata
+├── CITATION.cff             Academic citation metadata (preferred: preprint)
 ├── NovaSM3/                 Full Spot-Micro locomotion platform
 └── libraries/               Vendored Arduino dependencies
 ```
@@ -99,9 +100,11 @@ Experimental prototypes (`Trail/`, `stablisingrobotpid/`, etc.) are retained as 
 
 ---
 
-## Paper
+## Paper (cite this for Google Scholar)
 
 **Sim-to-real balance control of an 8-DoF quadruped using ROS 2 and embedded complementary filtering.** Romil Chetankumar Modi, 2025. Preprint. Supported by the Anglia Ruskin University (ARU) School of Engineering and the Built Environment.
+
+For discoverability on Google Scholar, archive the PDF on Figshare as item type **Preprint** (not Software). Figshare only sends Scholar meta tags for preprint / thesis / journal / conference / book / report / chapter items. After publishing, replace the `doi` / `url` below with the Figshare DOI.
 
 - [Abstract](https://romil0001.github.io/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering/paper/)
 - [PDF](docs/paper/Sim-to-real_balance_control_of_an_8-DoF_quadruped_using_ROS_2_and_embedded_complementary_filtering.pdf)
@@ -116,19 +119,20 @@ Experimental prototypes (`Trail/`, `stablisingrobotpid/`, etc.) are retained as 
 }
 ```
 
-## Citation
+## Software citation
 
 ```bibtex
-@software{q8_quadruped_imu_stabilization_2026,
-  author    = {romil0001},
-  title     = {Rombotics Q8: IMU-Based Static Stabilization for a Low-Cost Quadruped},
-  year      = {2026},
-  url       = {https://github.com/romil0001/Q8_Quadruped_IMU_Stabilization},
-  version   = {1.0.0}
+@software{modi2025q8firmware,
+  author  = {Modi, Romil Chetankumar},
+  title   = {Rombotics Q8 firmware: IMU-based static stabilization for a low-cost 8-DoF quadruped},
+  year    = {2025},
+  url     = {https://github.com/romil0001/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering},
+  version = {1.0.0},
+  license = {MIT}
 }
 ```
 
-See also [CITATION.cff](CITATION.cff). Update author, affiliation, and ORCID before thesis submission.
+See also [CITATION.cff](CITATION.cff) (`preferred-citation` is the preprint).
 
 ---
 

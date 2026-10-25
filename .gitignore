@@ -27,3 +27,4 @@ Thumbs.db
 # Local secrets / env
 .env
 .env.*
+.venv-pdf/

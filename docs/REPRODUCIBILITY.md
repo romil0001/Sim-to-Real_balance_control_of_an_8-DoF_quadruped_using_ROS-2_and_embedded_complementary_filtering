@@ -21,8 +21,8 @@ This guide enables independent replication of the Rombotics Q8 stabilization exp
 ## Step 1 — Clone and Configure Environment
 
 ```bash
-git clone https://github.com/romil0001/Q8_Quadruped_IMU_Stabilization.git
-cd Q8_Quadruped_IMU_Stabilization
+git clone https://github.com/romil0001/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering.git
+cd Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering
 git checkout main   # or the release tag / commit under study
 ```
 
