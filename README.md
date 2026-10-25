@@ -104,8 +104,9 @@ Experimental prototypes (`Trail/`, `stablisingrobotpid/`, etc.) are retained as 
 
 **Sim-to-real balance control of an 8-DoF quadruped using ROS 2 and embedded complementary filtering.** Romil Chetankumar Modi, 2025. Preprint. Supported by the Anglia Ruskin University (ARU) School of Engineering and the Built Environment.
 
-For discoverability on Google Scholar, archive the PDF on Figshare as item type **Preprint** (not Software). Figshare only sends Scholar meta tags for preprint / thesis / journal / conference / book / report / chapter items. After publishing, replace the `doi` / `url` below with the Figshare DOI.
+Figshare Preprint DOI: [10.6084/m9.figshare.34780536](https://doi.org/10.6084/m9.figshare.34780536)
 
+- [DOI](https://doi.org/10.6084/m9.figshare.34780536)
 - [Abstract](https://romil0001.github.io/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering/paper/)
 - [PDF](docs/paper/Sim-to-real_balance_control_of_an_8-DoF_quadruped_using_ROS_2_and_embedded_complementary_filtering.pdf)
 
@@ -115,7 +116,8 @@ For discoverability on Google Scholar, archive the PDF on Figshare as item type 
   title  = {Sim-to-real balance control of an 8-DoF quadruped using {ROS} 2 and embedded complementary filtering},
   year   = {2025},
   note   = {Preprint},
-  url    = {https://romil0001.github.io/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering/paper/}
+  doi    = {10.6084/m9.figshare.34780536},
+  url    = {https://doi.org/10.6084/m9.figshare.34780536}
 }
 ```
 

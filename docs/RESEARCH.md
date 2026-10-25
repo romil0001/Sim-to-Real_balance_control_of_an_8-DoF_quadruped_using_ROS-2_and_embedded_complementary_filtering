@@ -179,7 +179,8 @@ Prefer the preprint (same title/author/year as the PDF) so Google Scholar can cl
   title  = {Sim-to-real balance control of an 8-DoF quadruped using {ROS} 2 and embedded complementary filtering},
   year   = {2025},
   note   = {Preprint},
-  url    = {https://romil0001.github.io/Sim-to-Real_balance_control_of_an_8-DoF_quadruped_using_ROS-2_and_embedded_complementary_filtering/paper/}
+  doi    = {10.6084/m9.figshare.34780536},
+  url    = {https://doi.org/10.6084/m9.figshare.34780536}
 }
 ```
 
